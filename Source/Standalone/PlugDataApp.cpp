@@ -297,4 +297,23 @@ int PlugDataApp::parseSystemArguments(String const& arguments)
     return retval;
 }
 
+
+void StandalonePluginHolder::sendNewAudioSettings()
+{
+    auto* mainWindow= dynamic_cast<PlugDataApp*>(JUCEApplicationBase::getInstance())->getWindow();
+    auto* pd = dynamic_cast<PlugDataAudioProcessor*>(mainWindow->getAudioProcessor());
+
+    
+    MemoryOutputStream message;
+    
+    message.writeInt(MessageHandler::tGlobal);
+    message.writeString("AudioStatus");
+    
+    message.writeInt(getNumInputChannels());
+    message.writeInt(getNumOutputChannels());
+    message.writeString(deviceManager.createStateXml()->toString());
+    
+    pd->messageHandler.sendMessage(message.getMemoryBlock());
+}
+    
 JUCE_CREATE_APPLICATION_DEFINE(PlugDataApp);

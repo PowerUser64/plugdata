@@ -5,8 +5,6 @@ struct TextBase : public ObjectBase
         : ObjectBase(obj, parent)
         , isValid(valid)
     {
-        currentText = getText();
-
         // To get enter/exit messages
         addMouseListener(object, false);
     }
@@ -27,7 +25,7 @@ struct TextBase : public ObjectBase
 
     void resized() override
     {
-        int fontWidth = glist_fontwidth(cnv->patch.getPointer());
+        int fontWidth = 7;
         textObjectWidth = (getWidth() - textWidthOffset) / fontWidth;
 
         int width = textObjectWidth * fontWidth + textWidthOffset;
@@ -39,7 +37,7 @@ struct TextBase : public ObjectBase
         if (getWidth() != width || getHeight() != height) {
             object->setSize(width + Object::doubleMargin, height + Object::doubleMargin);
         }
-
+        
         if (editor) {
             editor->setBounds(getLocalBounds());
         }
@@ -102,6 +100,7 @@ struct TextBase : public ObjectBase
 
     void updateBounds() override
     {
+        /*
         pd->getCallbackLock()->enter();
 
         int x, y, w, h;
@@ -112,30 +111,53 @@ struct TextBase : public ObjectBase
 
         Rectangle<int> bounds = { x, y, textObj->te_width, h };
 
-        int fontWidth = glist_fontwidth(cnv->patch.getPointer());
-        int textWidth = getBestTextWidth(currentText);
+       
 
         pd->getCallbackLock()->exit();
-
-        // We need to handle the resizable width, which pd saves in amount of text characters
-        textWidthOffset = textWidth % fontWidth;
-        textObjectWidth = bounds.getWidth();
-
-        if (textObjectWidth == 0) {
-            textObjectWidth = (textWidth - textWidthOffset) / fontWidth;
-        }
-
-        int width = textObjectWidth * fontWidth + textWidthOffset;
-        width = std::max(width, std::max({ 1, object->numInputs, object->numOutputs }) * 18);
-
-        numLines = getNumLines(currentText, width);
-        int height = numLines * 15 + 6;
-
-        bounds.setWidth(width);
-        bounds.setHeight(height);
-
-        object->setObjectBounds(bounds);
+*/
+        
     }
+        
+    void receiveMessage(MemoryBlock message) override
+    {
+        MemoryInputStream istream(message, false);
+        auto selector = istream.readString();
+        
+        if(selector == "SetText") {
+            currentText = istream.readString();
+            repaint();
+        }
+        if(selector == "SetWidth") {
+            
+            int newWidth = istream.readInt();
+            
+            Rectangle<int> bounds = object->getObjectBounds();
+            
+            int fontWidth = 7;
+            int textWidth = getBestTextWidth(currentText);
+               
+            // We need to handle the resizable width, which pd saves in amount of text characters
+            textWidthOffset = textWidth % fontWidth;
+            textObjectWidth = newWidth;
+
+            if (textObjectWidth == 0) {
+                textObjectWidth = (textWidth - textWidthOffset) / fontWidth;
+            }
+
+            int width = textObjectWidth * fontWidth + textWidthOffset;
+            width = std::max(width, std::max({ 1, object->numInputs, object->numOutputs }) * 18);
+
+            numLines = getNumLines(currentText, width);
+            int height = numLines * 15 + 6;
+
+            bounds.setWidth(width);
+            bounds.setHeight(height);
+
+            object->setObjectBounds(bounds);
+        }
+        
+    };
+
 
     void hideEditor() override
     {

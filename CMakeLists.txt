@@ -100,7 +100,7 @@ source_group("Remote\\Source" FILES ${PdRemoteSources})
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/Resources/Info.plist" INFO_PLIST)
 
-juce_add_gui_app(PdRemote
+juce_add_console_app(PdRemote
     VERSION                     ${PLUGDATA_VERSION}
     COMPANY_NAME                ${PLUGDATA_COMPANY_NAME}
     COMPANY_COPYRIGHT           ${PLUGDATA_COMPANY_COPYRIGHT}
@@ -298,6 +298,11 @@ target_include_directories(PdRemote PUBLIC "$<BUILD_INTERFACE:${PLUGDATA_INCLUDE
 target_include_directories(PlugDataStandalone PUBLIC "$<BUILD_INTERFACE:${PLUGDATA_INCLUDE_DIRECTORY}>")
 target_include_directories(PlugData PUBLIC "$<BUILD_INTERFACE:${PLUGDATA_INCLUDE_DIRECTORY}>")
 target_include_directories(PlugDataFx PUBLIC "$<BUILD_INTERFACE:${PLUGDATA_INCLUDE_DIRECTORY}>")
+
+target_include_directories(PdRemote PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Remote/ipc")
+target_include_directories(PlugDataStandalone PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Remote/ipc")
+target_include_directories(PlugData PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Remote/ipc")
+target_include_directories(PlugDataFx PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/Remote/ipc")
 
 if(APPLE)
 target_include_directories(PlugDataMidi PUBLIC "$<BUILD_INTERFACE:${PLUGDATA_INCLUDE_DIRECTORY}>")

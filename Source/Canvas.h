@@ -45,6 +45,7 @@ class Canvas : public Component, public Value::Listener, public LassoSource<Weak
     void mouseMove(const MouseEvent& e) override;
 
     void synchronise(bool updatePosition = true);
+    void synchronise(MemoryBlock syncBlock);
     
     void updateDrawables();
     void updateGuiValues();
@@ -61,6 +62,8 @@ class Canvas : public Component, public Value::Listener, public LassoSource<Weak
     void duplicateSelection();
     
     void encapsulateSelection();
+    
+    Object* getObjectByID(String ID);
 
     void undo();
     void redo();

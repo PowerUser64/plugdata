@@ -37,8 +37,7 @@ namespace pd {
 class Patch;
 };
 
-class StandalonePluginHolder : private AudioIODeviceCallback
-    , private Timer
+class StandalonePluginHolder : public ChangeListener
     , private Value::Listener {
 public:
     /** Structure used for the number of inputs and outputs. */
@@ -60,22 +59,18 @@ public:
 
         In all instances, the settingsToUse will take precedence over the "preferred" options if not null.
     */
-    StandalonePluginHolder(PropertySet* settingsToUse, bool takeOwnershipOfSettings = true, String const& preferredDefaultDeviceName = String(), AudioDeviceManager::AudioDeviceSetup const* preferredSetupOptions = nullptr, Array<PluginInOuts> const& channels = Array<PluginInOuts>(),
-#if JUCE_ANDROID || JUCE_IOS
-        bool shouldAutoOpenMidiDevices = true
-#else
-        bool shouldAutoOpenMidiDevices = false
-#endif
+    StandalonePluginHolder(PropertySet* settingsToUse, bool takeOwnershipOfSettings = true, String const& preferredDefaultDeviceName = String(), AudioDeviceManager::AudioDeviceSetup const* preferredSetupOptions = nullptr, Array<PluginInOuts> const& channels = Array<PluginInOuts>()
         )
 
         : settings(settingsToUse, takeOwnershipOfSettings)
         , channelConfiguration(channels)
-        , autoOpenMidiDevices(shouldAutoOpenMidiDevices)
     {
         shouldMuteInput.addListener(this);
         shouldMuteInput = !isInterAppAudioConnected();
 
         createPlugin();
+        
+        deviceManager.addChangeListener(this);
 
         auto inChannels = (channelConfiguration.size() > 0 ? channelConfiguration[0].numIns : processor->getMainBusNumInputChannels());
 
@@ -96,20 +91,18 @@ public:
 
     void init(bool enableAudioInput, String const& preferredDefaultDeviceName)
     {
-        setupAudioDevices(enableAudioInput, preferredDefaultDeviceName, options.get());
+        
 #if JUCE_DEBUG
         // reloadPluginState();
 #endif
+        reloadAudioDeviceState(enableAudioInput, preferredDefaultDeviceName, options.get());
+        
         startPlaying();
-
-        if (autoOpenMidiDevices)
-            startTimer(500);
     }
 
     ~StandalonePluginHolder() override
     {
-        stopTimer();
-
+        deviceManager.removeChangeListener(this);
         deletePlugin();
         shutDownAudioDevices();
     }
@@ -185,48 +178,25 @@ public:
             settings->setValue("lastStateFile", fc.getResult().getFullPathName());
     }
 
-    /** Pops up a dialog letting the user save the processor's state to a file. */
-    void askUserToSaveState(String const& fileSuffix = String())
-    {
-        stateFileChooser = std::make_unique<FileChooser>(TRANS("Save current state"), getLastFile(), getFilePatterns(fileSuffix));
-        auto flags = FileBrowserComponent::saveMode | FileBrowserComponent::canSelectFiles | FileBrowserComponent::warnAboutOverwriting;
+    void savePluginState()
+     {
+         if (settings != nullptr && processor != nullptr) {
+             MemoryBlock data;
+             processor->getStateInformation(data);
 
-        stateFileChooser->launchAsync(flags,
-            [this](FileChooser const& fc) {
-                if (fc.getResult() == File {})
-                    return;
+             settings->setValue("filterState", data.toBase64Encoding());
+         }
+     }
 
-                setLastFile(fc);
+     void reloadPluginState()
+     {
+         if (settings != nullptr) {
+             MemoryBlock data;
 
-                MemoryBlock data;
-                processor->getStateInformation(data);
-
-                if (!fc.getResult().replaceWithData(data.getData(), data.getSize()))
-                    AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon, TRANS("Error whilst saving"), TRANS("Couldn't write to the specified file!"));
-            });
-    }
-
-    /** Pops up a dialog letting the user re-load the processor's state from a file. */
-    void askUserToLoadState(String const& fileSuffix = String())
-    {
-        stateFileChooser = std::make_unique<FileChooser>(TRANS("Load a saved state"), getLastFile(), getFilePatterns(fileSuffix));
-        auto flags = FileBrowserComponent::openMode | FileBrowserComponent::canSelectFiles;
-
-        stateFileChooser->launchAsync(flags,
-            [this](FileChooser const& fc) {
-                if (fc.getResult() == File {})
-                    return;
-
-                setLastFile(fc);
-
-                MemoryBlock data;
-
-                if (fc.getResult().loadFileAsData(data))
-                    processor->setStateInformation(data.getData(), static_cast<int>(data.getSize()));
-                else
-                    AlertWindow::showMessageBoxAsync(AlertWindow::WarningIcon, TRANS("Error whilst loading"), TRANS("Couldn't read from the specified file!"));
-            });
-    }
+             if (data.fromBase64Encoding(settings->getValue("filterState")) && data.getSize() > 0)
+                 processor->setStateInformation(data.getData(), static_cast<int>(data.getSize()));
+         }
+     }
 
     void startPlaying()
     {
@@ -281,26 +251,6 @@ public:
         deviceManager.initialise(enableAudioInput ? inputChannels : 0, outputChannels, savedState.get(), true, preferredDefaultDeviceName, preferredSetupOptions);
     }
 
-    void savePluginState()
-    {
-        if (settings != nullptr && processor != nullptr) {
-            MemoryBlock data;
-            processor->getStateInformation(data);
-
-            settings->setValue("filterState", data.toBase64Encoding());
-        }
-    }
-
-    void reloadPluginState()
-    {
-        if (settings != nullptr) {
-            MemoryBlock data;
-
-            if (data.fromBase64Encoding(settings->getValue("filterState")) && data.getSize() > 0)
-                processor->setStateInformation(data.getData(), static_cast<int>(data.getSize()));
-        }
-    }
-
     bool isInterAppAudioConnected()
     {
         return false;
@@ -324,7 +274,6 @@ public:
     std::atomic<bool> muteInput { true };
     Value shouldMuteInput;
     AudioBuffer<float> emptyBuffer;
-    bool autoOpenMidiDevices;
 
     std::unique_ptr<AudioDeviceManager::AudioDeviceSetup> options;
     Array<MidiDeviceInfo> lastMidiDevices;
@@ -332,158 +281,18 @@ public:
     std::unique_ptr<FileChooser> stateFileChooser;
 
 private:
-    /*  This class can be used to ensure that audio callbacks use buffers with a
-        predictable maximum size.
+        
+    void sendNewAudioSettings();
+        
 
-        On some platforms (such as iOS 10), the expected buffer size reported in
-        audioDeviceAboutToStart may be smaller than the blocks passed to
-        audioDeviceIOCallback. This can lead to out-of-bounds reads if the render
-        callback depends on additional buffers which were initialised using the
-        smaller size.
-
-        As a workaround, this class will ensure that the render callback will
-        only ever be called with a block with a length less than or equal to the
-        expected block size.
-    */
-    class CallbackMaxSizeEnforcer : public AudioIODeviceCallback {
-    public:
-        explicit CallbackMaxSizeEnforcer(AudioIODeviceCallback& callbackIn)
-            : inner(callbackIn)
-        {
-        }
-
-        void audioDeviceAboutToStart(AudioIODevice* device) override
-        {
-            maximumSize = device->getCurrentBufferSizeSamples();
-            storedInputChannels.resize((size_t)device->getActiveInputChannels().countNumberOfSetBits());
-            storedOutputChannels.resize((size_t)device->getActiveOutputChannels().countNumberOfSetBits());
-
-            inner.audioDeviceAboutToStart(device);
-        }
-
-        void audioDeviceIOCallbackWithContext(float const** inputChannelData,
-            int numInputChannels,
-            float** outputChannelData,
-            int numOutputChannels,
-            int numSamples,
-            AudioIODeviceCallbackContext const& context) override
-        {
-            jassertquiet((int)storedInputChannels.size() == numInputChannels);
-            jassertquiet((int)storedOutputChannels.size() == numOutputChannels);
-
-            int position = 0;
-
-            while (position < numSamples) {
-                auto const blockLength = jmin(maximumSize, numSamples - position);
-
-                initChannelPointers(inputChannelData, storedInputChannels, position);
-                initChannelPointers(outputChannelData, storedOutputChannels, position);
-
-                inner.audioDeviceIOCallbackWithContext(storedInputChannels.data(),
-                    (int)storedInputChannels.size(),
-                    storedOutputChannels.data(),
-                    (int)storedOutputChannels.size(),
-                    blockLength,
-                    context);
-
-                position += blockLength;
-            }
-        }
-
-        void audioDeviceStopped() override
-        {
-            inner.audioDeviceStopped();
-        }
-
-    private:
-        struct GetChannelWithOffset {
-            int offset;
-
-            template<typename Ptr>
-            auto operator()(Ptr ptr) const noexcept -> Ptr { return ptr + offset; }
-        };
-
-        template<typename Ptr, typename Vector>
-        void initChannelPointers(Ptr&& source, Vector&& target, int offset)
-        {
-            std::transform(source, source + target.size(), target.begin(), GetChannelWithOffset { offset });
-        }
-
-        AudioIODeviceCallback& inner;
-        int maximumSize = 0;
-        std::vector<float const*> storedInputChannels;
-        std::vector<float*> storedOutputChannels;
-    };
-
-    CallbackMaxSizeEnforcer maxSizeEnforcer { *this };
-
-    void audioDeviceIOCallbackWithContext(float const** inputChannelData,
-        int numInputChannels,
-        float** outputChannelData,
-        int numOutputChannels,
-        int numSamples,
-        AudioIODeviceCallbackContext const& context) override
+    void changeListenerCallback (ChangeBroadcaster *source) override
     {
-        if (muteInput) {
-            emptyBuffer.clear();
-            inputChannelData = emptyBuffer.getArrayOfReadPointers();
-        }
-
-        player.audioDeviceIOCallbackWithContext(inputChannelData,
-            numInputChannels,
-            outputChannelData,
-            numOutputChannels,
-            numSamples,
-            context);
-    }
-
-    void audioDeviceAboutToStart(AudioIODevice* device) override
-    {
-        emptyBuffer.setSize(device->getActiveInputChannels().countNumberOfSetBits(), device->getCurrentBufferSizeSamples());
-        emptyBuffer.clear();
-
-        player.audioDeviceAboutToStart(device);
-        player.setMidiOutput(deviceManager.getDefaultMidiOutput());
-    }
-
-    void audioDeviceStopped() override
-    {
-        player.setMidiOutput(nullptr);
-        player.audioDeviceStopped();
-        emptyBuffer.setSize(0, 0);
-    }
-
-    void setupAudioDevices(bool enableAudioInput, String const& preferredDefaultDeviceName, AudioDeviceManager::AudioDeviceSetup const* preferredSetupOptions)
-    {
-        deviceManager.addAudioCallback(&maxSizeEnforcer);
-        deviceManager.addMidiInputDeviceCallback({}, &player);
-
-        reloadAudioDeviceState(enableAudioInput, preferredDefaultDeviceName, preferredSetupOptions);
+        sendNewAudioSettings();
     }
 
     void shutDownAudioDevices()
     {
         saveAudioDeviceState();
-
-        deviceManager.removeMidiInputDeviceCallback({}, &player);
-        deviceManager.removeAudioCallback(&maxSizeEnforcer);
-    }
-
-    void timerCallback() override
-    {
-        auto newMidiDevices = MidiInput::getAvailableDevices();
-
-        if (newMidiDevices != lastMidiDevices) {
-            for (auto& oldDevice : lastMidiDevices)
-                if (!newMidiDevices.contains(oldDevice))
-                    deviceManager.setMidiInputDeviceEnabled(oldDevice.identifier, false);
-
-            for (auto& newDevice : newMidiDevices)
-                if (!lastMidiDevices.contains(newDevice))
-                    deviceManager.setMidiInputDeviceEnabled(newDevice.identifier, true);
-
-            lastMidiDevices = newMidiDevices;
-        }
     }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(StandalonePluginHolder)
@@ -514,12 +323,7 @@ public:
         true, then the settings object will be owned and deleted by this object.
     */
     PlugDataWindow(String const& title, Colour backgroundColour, PropertySet* settingsToUse, bool takeOwnershipOfSettings, String const& preferredDefaultDeviceName = String(), AudioDeviceManager::AudioDeviceSetup const* preferredSetupOptions = nullptr,
-        Array<PluginInOuts> const& constrainToConfiguration = {},
-#if JUCE_ANDROID || JUCE_IOS
-        bool autoOpenMidiDevices = true
-#else
-        bool autoOpenMidiDevices = false
-#endif
+        Array<PluginInOuts> const& constrainToConfiguration = {}
         )
         : DocumentWindow(title, backgroundColour, DocumentWindow::minimiseButton | DocumentWindow::maximiseButton | DocumentWindow::closeButton)
     {
@@ -530,7 +334,7 @@ public:
         setTitleBarHeight(0);
         setTitleBarButtonsRequired(DocumentWindow::minimiseButton | DocumentWindow::maximiseButton | DocumentWindow::closeButton, false);
 
-        pluginHolder = std::make_unique<StandalonePluginHolder>(settingsToUse, takeOwnershipOfSettings, preferredDefaultDeviceName, preferredSetupOptions, constrainToConfiguration, autoOpenMidiDevices);
+        pluginHolder = std::make_unique<StandalonePluginHolder>(settingsToUse, takeOwnershipOfSettings, preferredDefaultDeviceName, preferredSetupOptions, constrainToConfiguration);
 
         setOpaque(false);
 
@@ -570,7 +374,7 @@ public:
         setResizable(true, false);
     }
 
-    ~PlugDataWindow() override
+    ~PlugDataWindow()
     {
         pluginHolder->stopPlaying();
         clearContentComponent();

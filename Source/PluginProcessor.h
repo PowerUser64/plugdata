@@ -14,6 +14,7 @@
 #include "Statusbar.h"
 
 
+
 class PlugDataLook;
 
 class PlugDataPluginEditor;
@@ -68,12 +69,11 @@ class PlugDataAudioProcessor : public AudioProcessor, public pd::Instance, publi
     void parameterValueChanged (int parameterIndex, float newValue) override;
     void parameterGestureChanged (int parameterIndex, bool gestureIsStarting) override;
     
-    void receiveDSPState(bool dsp) override;
     void receiveGuiUpdate(int type) override;
 
     void updateConsole() override;
 
-    void synchroniseCanvas(void* cnv) override;
+    void synchroniseCanvas(String cnv, MemoryBlock block);
 
     void process(dsp::AudioBlock<float>, MidiBuffer&);
 
@@ -97,6 +97,27 @@ class PlugDataAudioProcessor : public AudioProcessor, public pd::Instance, publi
         int nbus = getBusCount(isInput);
         return nbus > 0;
     }
+    
+    static Component* getComponentByIDImpl(Component* component, String ID) {
+        if(auto* found = component->findChildWithID(ID)) return found;
+        
+        for(auto* child : component->getChildren()) {
+            if(auto* found = getComponentByIDImpl(child, ID)) {
+                return found;
+            }
+        }
+        
+        return nullptr;
+    }
+    
+    template<typename T>
+    T* getComponentByID(String ID) {
+        if(auto* editor = getActiveEditor()) {
+            return dynamic_cast<T*>(getComponentByIDImpl(editor, ID));
+        }
+        
+        return nullptr;
+    }
 
     void initialiseFilesystem();
     void saveSettings();
@@ -109,8 +130,8 @@ class PlugDataAudioProcessor : public AudioProcessor, public pd::Instance, publi
     void messageEnqueued() override;
     void performParameterChange(int type, int idx, float value) override;
 
-    pd::Patch* loadPatch(String patch);
-    pd::Patch* loadPatch(const File& patch);
+    void loadPatch(String patch);
+    void loadPatch(const File& patch);
 
     void titleChanged() override;
 

@@ -27,7 +27,7 @@ class Instance;
 //! @see Instance, Object, Gui
 class Patch {
 public:
-    Patch(void* ptr, Instance* instance, File currentFile = File());
+    Patch(String ID, Instance* instance, File currentFile = File());
 
     // The compare equal operator.
     bool operator==(Patch const& other) const
@@ -43,14 +43,13 @@ public:
     void* createGraph(String const& name, int size, int x, int y);
     void* createGraphOnParent(int x, int y);
 
-    void* createObject(String const& name, int x, int y);
-    void removeObject(void* obj);
-    void* renameObject(void* obj, String const& name);
+    void createObject(String const& name, int x, int y);
+    void renameObject(String obj, String const& name);
 
-    void moveObjects(std::vector<void*> const&, int x, int y);
+    void moveObjects(StringArray objectIDs, int x, int y);
 
     void finishRemove();
-    void removeSelection();
+    void removeSelection(StringArray objectIDs);
 
     void selectObject(void*);
     void deselectAll();
@@ -90,14 +89,14 @@ public:
 
     bool hasConnection(void* src, int nout, void* sink, int nin);
     bool canConnect(void* src, int nout, void* sink, int nin);
-    bool createConnection(void* src, int nout, void* sink, int nin);
-    void removeConnection(void* src, int nout, void* sink, int nin);
+    bool createConnection(String src, int nout, String sink, int nin);
+    void removeConnection(String src, int nout, String sink, int nin);
 
     Connections getConnections() const;
 
     t_canvas* getPointer() const
     {
-        return static_cast<t_canvas*>(ptr);
+        return nullptr;//static_cast<t_canvas*>(ptr);
     }
 
     // Gets the objects of the patch.
@@ -105,6 +104,7 @@ public:
 
     String getCanvasContent()
     {
+        /*
         if (!ptr)
             return {};
         char* buf;
@@ -112,7 +112,7 @@ public:
         libpd_getcontent(static_cast<t_canvas*>(ptr), &buf, &bufsize);
 
         auto content = String(buf, static_cast<size_t>(bufsize));
-        return content;
+        return content; */
     }
 
     int getIndex(void* obj);
@@ -126,10 +126,10 @@ public:
 
     Instance* instance = nullptr;
 
+    String canvasID;
+    
 private:
     File currentFile;
-
-    void* ptr = nullptr;
 
     // Initialisation parameters for GUI objects
     // Taken from pd save files, this will make sure that it directly initialises objects with the right parameters

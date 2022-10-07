@@ -381,8 +381,7 @@ void PlugDataPluginEditor::mouseDrag(const MouseEvent& e)
 #endif
 
 void PlugDataPluginEditor::newProject() {
-    auto* patch = pd.loadPatch(pd::Instance::defaultPatch);
-    patch->setTitle("Untitled Patcher");
+    pd.loadPatch(pd::Instance::defaultPatch);
 }
 
 void PlugDataPluginEditor::openProject()
@@ -1193,7 +1192,7 @@ bool PlugDataPluginEditor::perform(const InvocationInfo& info)
         }
         case CommandIDs::NewArray:
         {
-            
+            /* TODO:
             Dialogs::showArrayDialog(&openedDialog, this,
                                      [this](int result, const String& name, const String& size)
                                      {
@@ -1203,7 +1202,7 @@ bool PlugDataPluginEditor::perform(const InvocationInfo& info)
                                              auto* object = new Object(cnv, "graph " + name + " " + size, cnv->viewport->getViewArea().getCentre());
                                              cnv->objects.add(object);
                                          }
-                                     });
+                                     }); */
             return true;
         }
 
@@ -1216,7 +1215,7 @@ bool PlugDataPluginEditor::perform(const InvocationInfo& info)
             int idx = static_cast<int>(info.commandID) - CommandIDs::NewObject;
             if (isPositiveAndBelow(idx, objectNames.size()))
             {
-                cnv->objects.add(new Object(cnv, objectNames[idx], lastPosition));
+                cnv->objects.add(new Object("", cnv, objectNames[idx], lastPosition));
                 return true;
             }
 

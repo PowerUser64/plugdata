@@ -223,7 +223,17 @@ Statusbar::Statusbar(PlugDataAudioProcessor& processor) : pd(processor)
     powerButton->setName("statusbar:mute");
     addAndMakeVisible(powerButton.get());
 
-    powerButton->onClick = [this]() { powerButton->getToggleState() ? pd.startDSP() : pd.releaseDSP(); };
+    powerButton->onClick = [this]() {
+        
+        MemoryOutputStream message;
+        
+        message.writeInt(MessageHandler::tGlobal);
+        message.writeString("DSP");
+        message.writeBool(powerButton->getToggleState());
+        
+        pd.messageHandler.sendMessage(message.getMemoryBlock());
+        
+    };
 
     powerButton->setToggleState(pd_getdspstate(), dontSendNotification);
 
@@ -329,6 +339,16 @@ Statusbar::Statusbar(PlugDataAudioProcessor& processor) : pd(processor)
     volumeSlider.setValue(0.75);
     volumeSlider.setRange(0.0f, 1.0f);
     volumeSlider.setName("statusbar:meter");
+    
+    volumeSlider.onValueChange = [this](){
+        MemoryOutputStream message;
+        
+        message.writeInt(MessageHandler::tGlobal);
+        message.writeString("Volume");
+        message.writeFloat(volumeSlider.getValue());
+        
+        pd.messageHandler.sendMessage(message.getMemoryBlock());
+    };
 
     volumeAttachment = std::make_unique<SliderParameterAttachment>(*pd.parameters.getParameter("volume"), volumeSlider, nullptr);
 

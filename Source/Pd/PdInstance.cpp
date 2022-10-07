@@ -109,19 +109,11 @@ bool wantsNativeDialog();
 namespace pd {
 
 Instance::Instance(String const& symbol) :
-    consoleHandler(this)
+    consoleHandler(this),
+    messageHandler(Uuid().toString(), true)
 {
     libpd_multi_init();
     
-    auto ID = Uuid().toString();
-    auto path = String("/Users/timschoen/Projecten/PlugData/XCode/PdRemote_artefacts/Debug/PdRemote.app/Contents/MacOS/PdRemote");
-    
-    send_queue = std::make_unique<boost::interprocess::message_queue>(boost::interprocess::open_or_create, (ID + "_receive").toRawUTF8(), 100, 1024);
-    
-    receive_queue = std::make_unique<boost::interprocess::message_queue>(boost::interprocess::open_or_create, (ID + "_send").toRawUTF8(), 100, 1024);
-    
-    StringArray args = {path, ID};
-    start(args);
     
     m_instance = libpd_new_instance();
 
@@ -165,7 +157,8 @@ Instance::Instance(String const& symbol) :
         static_cast<Instance*>(instance)->receiveGuiUpdate(3);
     };
 
-    auto synchronise_trigger = [](void* instance, void* cnv) { static_cast<Instance*>(instance)->synchroniseCanvas(cnv); };
+    // TODO: remove this
+    auto synchronise_trigger = [](void* instance, void* cnv) {};
 
     register_gui_triggers(static_cast<t_pdinstance*>(m_instance), this, gui_trigger, panel_trigger, synchronise_trigger, parameter_trigger);
 
@@ -240,7 +233,6 @@ Instance::~Instance()
     pd_free(static_cast<t_pd*>(m_parameter_receiver));
     pd_free(static_cast<t_pd*>(m_parameter_change_receiver));
     
-    kill();
 
     libpd_set_instance(static_cast<t_pdinstance*>(m_instance));
     libpd_free_instance(static_cast<t_pdinstance*>(m_instance));
@@ -255,7 +247,6 @@ void Instance::prepareDSP(int const nins, int const nouts, double const samplera
 {
     libpd_set_instance(static_cast<t_pdinstance*>(m_instance));
     libpd_init_audio(nins, nouts, static_cast<int>(samplerate));
-    continuityChecker.prepare(samplerate, blockSize, std::max(nins, nouts));
 }
 
 void Instance::startDSP()
@@ -573,7 +564,7 @@ Patch Instance::openPatch(File const& toOpen)
         waitForStateUpdate();
     }
 
-    auto patch = Patch(cnv, this, toOpen);
+    auto patch = Patch("", this, toOpen);
 
     return patch;
 }

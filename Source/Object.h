@@ -21,9 +21,9 @@ class Canvas;
 class Object : public Component, public Value::Listener, public Timer, private TextEditor::Listener
 {
    public:
-    Object(Canvas* parent, const String& name = "", Point<int> position = {100, 100});
+    Object(String objectType, Canvas* parent, const String& name = "", Point<int> position = {100, 100});
 
-    Object(void* object, Canvas* parent);
+    Object(String objectID, String objectType, Point<int> position, Canvas* parent);
 
     ~Object();
 
@@ -35,9 +35,9 @@ class Object : public Component, public Value::Listener, public Timer, private T
     void paintOverChildren(Graphics&) override;
     void resized() override;
 
-    void updatePorts();
+    void updatePorts(std::pair<std::vector<bool>, std::vector<bool>> ioletDefinition);
 
-    void setType(const String& newType, void* existingObject = nullptr);
+    void setType(const String& newType, bool existingObject = false);
     void updateBounds();
 
     void showEditor();
@@ -86,7 +86,7 @@ class Object : public Component, public Value::Listener, public Timer, private T
 
     Point<int> mouseDownPos;
     bool attachedToMouse = false;
-
+    
    private:
     void initialise();
 
@@ -96,8 +96,7 @@ class Object : public Component, public Value::Listener, public Timer, private T
     bool createEditorOnMouseDown = false;
     bool selectionStateChanged = false;
     bool wasLockedOnMouseDown = false;
-
-
+    
     std::unique_ptr<TextEditor> newObjectEditor;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Object)

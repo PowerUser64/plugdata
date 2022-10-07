@@ -83,6 +83,7 @@ String ObjectBase::getText()
 
 String ObjectBase::getType() const
 {
+    /*
     if (ptr) {
         if (pd_class(static_cast<t_pd*>(ptr)) == canvas_class && canvas_isabstraction((t_canvas*)ptr)) {
             char namebuf[MAXPDSTRING];
@@ -98,7 +99,7 @@ String ObjectBase::getType() const
         if (auto* name = libpd_get_object_class_name(ptr)) {
             return String(name);
         }
-    }
+    } */
 
     return {};
 }
@@ -387,9 +388,14 @@ void GUIObject::setValue(float value)
     cnv->pd->enqueueDirectMessages(ptr, value);
 }
 
-ObjectBase* GUIObject::createGui(void* ptr, Object* parent)
+ObjectBase* GUIObject::createGui(String name, Object* parent)
 {
-    const String name = libpd_get_object_class_name(ptr);
+    void* ptr = nullptr;
+    
+    
+    // Temporary fix
+    return new TextObject(ptr, parent);
+    
     if (name == "bng") {
         return new BangObject(ptr, parent);
     }
@@ -447,7 +453,8 @@ ObjectBase* GUIObject::createGui(void* ptr, Object* parent)
         return new PictureObject(ptr, parent);
     } else if (name == "text define") {
         return new TextDefineObject(ptr, parent);
-    } else if (name == "gatom") {
+    }
+    /*else if (name == "gatom") {
         if (static_cast<t_fake_gatom*>(ptr)->a_flavor == A_FLOAT)
             return new FloatAtomObject(ptr, parent);
         else if (static_cast<t_fake_gatom*>(ptr)->a_flavor == A_SYMBOL)
@@ -469,7 +476,7 @@ ObjectBase* GUIObject::createGui(void* ptr, Object* parent)
         } else {
             return new SubpatchObject(ptr, parent);
         }
-    } else if (name == "array define") {
+    }*/ else if (name == "array define") {
         return new ArrayDefineObject(ptr, parent);
     } else if (name == "clone") {
         return new CloneObject(ptr, parent);
@@ -503,11 +510,12 @@ ObjectBase* GUIObject::createGui(void* ptr, Object* parent)
     else if (name == "canvas.edit") {
         return new CanvasEditObject(ptr, parent);
     }
+    /*
     else if (!pd_checkobject(static_cast<t_pd*>(ptr))) {
         // Object is not a patcher object but something else
         return new NonPatchable(ptr, parent);
-    }
-    
+    } */
 
     return new TextObject(ptr, parent);
+    
 }

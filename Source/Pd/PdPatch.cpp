@@ -60,15 +60,16 @@ void canvas_declare(t_canvas* x, t_symbol* s, int argc, t_atom* argv);
 
 namespace pd {
 
-Patch::Patch(void* patchPtr, Instance* parentInstance, File patchFile)
-    : ptr(patchPtr)
-    , instance(parentInstance)
+Patch::Patch(String ID, Instance* parentInstance, File patchFile)
+    : instance(parentInstance)
     , currentFile(patchFile)
+    , canvasID(ID)
 {
 }
 
 Rectangle<int> Patch::getBounds() const
 {
+    /*
     if (ptr) {
         t_canvas* cnv = getPointer();
 
@@ -79,21 +80,26 @@ Rectangle<int> Patch::getBounds() const
             return { cnv->gl_xmargin, cnv->gl_ymargin, cnv->gl_pixwidth, cnv->gl_pixheight };
         }
     }
-    return { 0, 0, 0, 0 };
+    return { 0, 0, 0, 0 }; */
 }
 
 void Patch::close()
 {
-    libpd_closefile(ptr);
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tGlobal);
+    message.writeString("ClosePatch");
+    message.writeString(canvasID);
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 bool Patch::isDirty() const
 {
-    return getPointer()->gl_dirty;
+    //return getPointer()->gl_dirty;
 }
 
 void Patch::savePatch(File const& location)
 {
+    /*
     String fullPathname = location.getParentDirectory().getFullPathName();
     String filename = location.getFileName();
 
@@ -104,11 +110,12 @@ void Patch::savePatch(File const& location)
     setTitle(filename);
 
     canvas_dirty(getPointer(), 0);
-    currentFile = location;
+    currentFile = location; */
 }
 
 void Patch::savePatch()
 {
+    /*
     String fullPathname = currentFile.getParentDirectory().getFullPathName();
     String filename = currentFile.getFileName();
 
@@ -119,11 +126,12 @@ void Patch::savePatch()
 
     setTitle(filename);
 
-    canvas_dirty(getPointer(), 0);
+    canvas_dirty(getPointer(), 0); */
 }
 
 void Patch::setCurrent(bool lock)
 {
+    /*
     instance->setThis(); // important for canvas_getcurrent
 
     if (!ptr)
@@ -150,10 +158,12 @@ void Patch::setCurrent(bool lock)
 
     if (lock)
         instance->getCallbackLock()->exit();
+     */
 }
 
 int Patch::getIndex(void* obj)
 {
+    /*
     int i = 0;
     auto* cnv = getPointer();
 
@@ -169,11 +179,13 @@ int Patch::getIndex(void* obj)
     }
 
     return -1;
+     */
 }
 
 Connections Patch::getConnections() const
 {
 
+    /*
     Connections connections;
 
     // instance->getCallbackLock()->enter();
@@ -192,11 +204,12 @@ Connections Patch::getConnections() const
 
     // instance->getCallbackLock()->exit();
 
-    return connections;
+    return connections; */
 }
 
 std::vector<void*> Patch::getObjects(bool onlyGui)
 {
+    /*
     if (ptr) {
         std::vector<void*> objects;
         t_canvas const* cnv = getPointer();
@@ -212,11 +225,12 @@ std::vector<void*> Patch::getObjects(bool onlyGui)
 
         return objects;
     }
-    return {};
+    return {}; */
 }
 
 void* Patch::createGraphOnParent(int x, int y)
 {
+    /*
     t_pd* pdobject = nullptr;
     std::atomic<bool> done = false;
 
@@ -233,11 +247,12 @@ void* Patch::createGraphOnParent(int x, int y)
 
     assert(pdobject);
 
-    return pdobject;
+    return pdobject; */
 }
 
 void* Patch::createGraph(String const& name, int size, int x, int y)
 {
+    /*
     t_pd* pdobject = nullptr;
     std::atomic<bool> done = false;
 
@@ -254,13 +269,13 @@ void* Patch::createGraph(String const& name, int size, int x, int y)
 
     assert(pdobject);
 
-    return pdobject;
+    return pdobject; */
 }
 
-void* Patch::createObject(String const& name, int x, int y)
+void Patch::createObject(String const& name, int x, int y)
 {
-    if (!ptr)
-        return nullptr;
+    //if (!ptr)
+    //    return nullptr;
 
     StringArray tokens;
     tokens.addTokens(name, false);
@@ -343,9 +358,10 @@ void* Patch::createObject(String const& name, int x, int y)
         }
     }
 
-    t_pd* pdobject = nullptr;
-    std::atomic<bool> done = false;
+    //t_pd* pdobject = nullptr;
+    //std::atomic<bool> done = false;
 
+    /*
     instance->enqueueFunction(
         [this, argc, argv, typesymbol, &pdobject, &done]() mutable {
             setCurrent();
@@ -355,18 +371,16 @@ void* Patch::createObject(String const& name, int x, int y)
 
     while (!done) {
         instance->waitForStateUpdate();
-    }
+    } */
     
-    MemoryOutputStream ostream;
-    ostream.writeInt(0);
-    ostream.writeString("CreateObject");
-    ostream.writeString("cnv_id"); // TODO: use canvas ID
-    ostream.writeString("obj 20 40 metro 200");
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
     
-    instance->send_queue->send(ostream.getData(), ostream.getDataSize(), 1);
-
-    assert(pdobject);
-    return pdobject;
+    message.writeString("CreateObject");
+    message.writeString("obj " + String(x) + " " + String(y) + " " + name);
+    
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 static int glist_getindex(t_glist* x, t_gobj* y)
@@ -379,10 +393,19 @@ static int glist_getindex(t_glist* x, t_gobj* y)
     return (indx);
 }
 
-void* Patch::renameObject(void* obj, String const& name)
+void Patch::renameObject(String objectID, String const& name)
 {
-    if (!obj || !ptr)
-        return nullptr;
+    
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("RenameObject");
+    message.writeString(objectID);
+    message.writeString(name);
+    
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
+    /*
 
     auto type = name.upToFirstOccurrenceOf(" ", false, false);
     String newName = name;
@@ -413,136 +436,115 @@ void* Patch::renameObject(void* obj, String const& name)
 
     instance->waitForStateUpdate();
 
-    return libpd_newest(getPointer());
+    return libpd_newest(getPointer()); */
 }
 
 void Patch::copy()
 {
+    /*
     instance->enqueueFunction(
         [this]() {
             int size;
             const char* text = libpd_copy(getPointer(), &size);
             auto copied = String::fromUTF8(text, size);
             MessageManager::callAsync([copied]() mutable { SystemClipboard::copyTextToClipboard(copied); });
-        });
+        }); */
 }
 
 void Patch::paste()
 {
+    /*
     auto text = SystemClipboard::getTextFromClipboard();
 
-    instance->enqueueFunction([this, text]() mutable { libpd_paste(getPointer(), text.toRawUTF8()); });
+    instance->enqueueFunction([this, text]() mutable { libpd_paste(getPointer(), text.toRawUTF8()); }); */
 }
 
 void Patch::duplicate()
 {
+    /*
     instance->enqueueFunction(
         [this]() {
             setCurrent();
             libpd_duplicate(getPointer());
-        });
+        }); */
 }
 
 void Patch::selectObject(void* obj)
 {
+    /*
     instance->enqueueFunction(
         [this, obj]() {
             auto* checked = &checkObject(obj)->te_g;
             if (!glist_isselected(getPointer(), checked)) {
                 glist_select(getPointer(), checked);
             }
-        });
+        }); */
 }
 
 void Patch::deselectAll()
 {
+    /*
     instance->enqueueFunction(
         [this]() {
             glist_noselect(getPointer());
             EDITOR->canvas_undo_already_set_move = 0;
-        });
+        }); */
 }
 
-void Patch::removeObject(void* obj)
-{
-    if (!obj || !ptr)
-        return;
 
-    instance->enqueueFunction(
-        [this, obj]() {
-            setCurrent();
-            libpd_removeobj(getPointer(), &checkObject(obj)->te_g);
-        });
+bool Patch::createConnection(String srcID, int nout, String sinkID, int nin)
+{
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("CreateConnection");
+
+    message.writeInt(nout);
+    message.writeString(srcID);
+    message.writeInt(nin);
+    message.writeString(sinkID);
+
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
-bool Patch::hasConnection(void* src, int nout, void* sink, int nin)
+void Patch::removeConnection(String srcID, int nout, String sinkID, int nin)
 {
-    bool hasConnection = false;
-    bool hasReturned = false;
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("RemoveConnection");
 
-    instance->enqueueFunction(
-        [this, &hasConnection, &hasReturned, src, nout, sink, nin]() mutable {
-            hasConnection = libpd_hasconnection(getPointer(), checkObject(src), nout, checkObject(sink), nin);
-            hasReturned = true;
-        });
+    message.writeInt(nout);
+    message.writeString(srcID);
+    message.writeInt(nin);
+    message.writeString(sinkID);
 
-    while (!hasReturned) {
-        instance->waitForStateUpdate();
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
+}
+
+void Patch::moveObjects(StringArray objectIDs, int dx, int dy)
+{
+    
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("MoveSelection");
+
+    message.writeInt(dx);
+    message.writeInt(dy);
+    
+    message.writeString("#");
+    for(auto& ID : objectIDs) {
+        message.writeString(ID);
     }
+    message.writeString("#");
 
-    return hasConnection;
-}
-
-bool Patch::canConnect(void* src, int nout, void* sink, int nin)
-{
-    bool canConnect = false;
-
-    instance->enqueueFunction([this, &canConnect, src, nout, sink, nin]() mutable { canConnect = libpd_canconnect(getPointer(), checkObject(src), nout, checkObject(sink), nin); });
-
-    instance->waitForStateUpdate();
-
-    return canConnect;
-}
-
-bool Patch::createConnection(void* src, int nout, void* sink, int nin)
-{
-    if (!src || !sink || !ptr)
-        return false;
-
-    bool canConnect = false;
-
-    instance->enqueueFunction(
-        [this, &canConnect, src, nout, sink, nin]() mutable {
-            canConnect = libpd_canconnect(getPointer(), checkObject(src), nout, checkObject(sink), nin);
-
-            if (!canConnect)
-                return;
-
-            setCurrent();
-
-            libpd_createconnection(getPointer(), checkObject(src), nout, checkObject(sink), nin);
-        });
-
-    instance->waitForStateUpdate();
-
-    return canConnect;
-}
-
-void Patch::removeConnection(void* src, int nout, void* sink, int nin)
-{
-    if (!src || !sink || !ptr)
-        return;
-
-    instance->enqueueFunction(
-        [this, src, nout, sink, nin]() mutable {
-            setCurrent();
-
-            libpd_removeconnection(getPointer(), checkObject(src), nout, checkObject(sink), nin);
-        });
-}
-
-void Patch::moveObjects(std::vector<void*> const& objects, int dx, int dy)
-{
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
+    
+    /*
     // if(!obj || !ptr) return;
 
     instance->enqueueFunction(
@@ -563,44 +565,55 @@ void Patch::moveObjects(std::vector<void*> const& objects, int dx, int dy)
             glist_noselect(getPointer());
             EDITOR->canvas_undo_already_set_move = 0;
             setCurrent();
-        });
+        }); */
 }
 
 void Patch::finishRemove()
 {
+    /*
     instance->enqueueFunction(
         [this]() mutable {
             setCurrent();
             libpd_finishremove(getPointer());
-        });
+        }); */
 }
 
-void Patch::removeSelection()
+void Patch::removeSelection(StringArray objectIDs)
 {
-    instance->enqueueFunction(
-        [this]() mutable {
-            setCurrent();
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("RemoveSelection");
 
-            libpd_removeselection(getPointer());
-        });
+    message.writeString("#");
+    for(auto& ID : objectIDs) {
+        message.writeString(ID);
+    }
+    message.writeString("#");
+
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 void Patch::startUndoSequence(String name)
 {
+    /*
     instance->enqueueFunction([this, name]() {
         canvas_undo_add(getPointer(), UNDO_SEQUENCE_START, name.toRawUTF8(), 0);
-    });
+    }); */
 }
 
 void Patch::endUndoSequence(String name)
 {
+    /*
     instance->enqueueFunction([this, name]() {
         canvas_undo_add(getPointer(), UNDO_SEQUENCE_END, name.toRawUTF8(), 0);
-    });
+    }); */
 }
 
 void Patch::undo()
 {
+    /*
     instance->enqueueFunction(
         [this]() {
             setCurrent();
@@ -610,11 +623,12 @@ void Patch::undo()
             libpd_undo(getPointer());
 
             setCurrent();
-        });
+        }); */
 }
 
 void Patch::redo()
 {
+    /*
     instance->enqueueFunction(
         [this]() {
             setCurrent();
@@ -624,24 +638,27 @@ void Patch::redo()
             libpd_redo(getPointer());
 
             setCurrent();
-        });
+        }); */
 }
 
 void Patch::setZoom(int newZoom)
 {
+    /*
     t_atom arg;
     SETFLOAT(&arg, newZoom);
 
     pd_typedmess(static_cast<t_pd*>(ptr), gensym("zoom"), 2, &arg);
+     */
 }
 
 t_object* Patch::checkObject(void* obj)
 {
-    return pd_checkobject(static_cast<t_pd*>(obj));
+    return nullptr; //pd_checkobject(static_cast<t_pd*>(obj));
 }
 
 void Patch::keyPress(int keycode, int shift)
 {
+    /*
     t_atom args[3];
 
     SETFLOAT(args, 1);
@@ -649,23 +666,27 @@ void Patch::keyPress(int keycode, int shift)
     SETFLOAT(args + 2, shift);
 
     pd_typedmess(static_cast<t_pd*>(ptr), gensym("key"), 3, args);
+    */
 }
 
 String Patch::getTitle() const
 {
+    return "tab";
+    /*
     String name = String::fromUTF8(getPointer()->gl_name->s_name);
-    return name.isEmpty() ? "Untitled Patcher" : name;
+    return name.isEmpty() ? "Untitled Patcher" : name; */
 }
 
 void Patch::setTitle(String const& title)
 {
+    /*
     if (!getPointer())
         return;
 
     canvas_unbind(getPointer());
     getPointer()->gl_name = gensym(title.toRawUTF8());
     canvas_bind(getPointer());
-    instance->titleChanged();
+    instance->titleChanged(); */
 }
 
 } // namespace pd

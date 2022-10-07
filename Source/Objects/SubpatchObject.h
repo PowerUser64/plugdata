@@ -3,7 +3,7 @@ struct SubpatchObject final : public TextBase
     , public Value::Listener {
     SubpatchObject(void* obj, Object* object)
         : TextBase(obj, object)
-        , subpatch({ ptr, cnv->pd })
+        , subpatch({ "", cnv->pd })
     {
         isGraphChild = false;
         hideNameAndArgs = static_cast<bool>(subpatch.getPointer()->gl_hidetext);

@@ -46,22 +46,6 @@ PlugDataAudioProcessor::PlugDataAudioProcessor()
     // Make sure to use dots for decimal numbers, pd requires that
     std::setlocale(LC_ALL, "C");
     
-    // continuityChecker keeps track of whether audio is running and creates a backup scheduler in case it isn't
-    continuityChecker.setCallback([this](t_float* in, t_float* out){
-        
-        if(isNonRealtime()) return;
-        
-        if(getCallbackLock()->tryEnter()) {
-            
-            // Dequeue messages
-            sendMessagesFromQueue();
-            
-            libpd_set_instance(static_cast<t_pdinstance*>(m_instance));
-            libpd_process_nodsp();
-            getCallbackLock()->exit();
-        }
-    });
-    
     parameters.createAndAddParameter(std::make_unique<AudioParameterFloat>(ParameterID("volume", 1), "Volume", NormalisableRange<float>(0.0f, 1.0f, 0.001f, 0.75f, false), 1.0f));
 
     // General purpose automation parameters you can get by using "receive param1" etc.
@@ -131,7 +115,7 @@ PlugDataAudioProcessor::PlugDataAudioProcessor()
             
             for(auto* cnv : editor->canvases) {
                 // Make sure inlets/outlets are updated
-                for(auto* object : cnv->objects) object->updatePorts();
+                //for(auto* object : cnv->objects) object->updatePorts();
             }
         }
 
@@ -159,6 +143,8 @@ PlugDataAudioProcessor::PlugDataAudioProcessor()
     logMessage("Libraries:");
     logMessage(else_version);
     logMessage(cyclone_version);
+    
+    startTimer(16);
 }
 
 PlugDataAudioProcessor::~PlugDataAudioProcessor()
@@ -481,177 +467,11 @@ bool PlugDataAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) 
 
 void PlugDataAudioProcessor::processBlock(AudioBuffer<float>& buffer, MidiBuffer& midiMessages)
 {
-    ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    continuityChecker.setNonRealtime(isNonRealtime());
-    continuityChecker.setTimer();
+    buffer.clear();
     
-    setThis();
-
-    for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-    {
-        buffer.clear(i, 0, buffer.getNumSamples());
-    }
-
-    midiBufferCopy.clear();
-    midiBufferCopy.addEvents(midiMessages, 0, buffer.getNumSamples(), audioAdvancement);
-
-    auto targetBlock = dsp::AudioBlock<float>(buffer);
-    auto blockOut = oversampling > 0 ? oversampler->processSamplesUp(targetBlock) : targetBlock;
-    
-    process(blockOut, midiMessages);
-        
-    if(oversampling > 0) {
-        oversampler->processSamplesDown(targetBlock);
-    }
-
-    buffer.applyGain(getParameters()[0]->getValue());
-    statusbarSource.processBlock(buffer, midiBufferCopy, midiMessages, totalNumOutputChannels);
 }
 
-void PlugDataAudioProcessor::process(dsp::AudioBlock<float> buffer, MidiBuffer& midiMessages)
-{
-    ScopedNoDenormals noDenormals;
-    const int blockSize = Instance::getBlockSize();
-    const int numSamples = static_cast<int>(buffer.getNumSamples());
-    const int adv = audioAdvancement >= 64 ? 0 : audioAdvancement;
-    const int numLeft = blockSize - adv;
-    const int numIn = getTotalNumInputChannels();
-    const int numOut = getTotalNumOutputChannels();
 
-    channelPointers.clear();
-    for(int ch = 0; ch < std::max(numIn, numOut); ch++) {
-        channelPointers.push_back(buffer.getChannelPointer(ch));
-    }
-
-    const bool midiConsume = acceptsMidi();
-    const bool midiProduce = producesMidi();
-
-    auto const maxOuts = std::max(numOut, std::max(numIn, numOut));
-    for (int ch = numIn; ch < maxOuts; ch++)
-    {
-        buffer.getSingleChannelBlock(ch).clear();
-    }
-
-    // If the current number of samples in this block
-    // is inferior to the number of samples required
-    if (numSamples < numLeft)
-    {
-        // we save the input samples and we output
-        // the missing samples of the previous tick.
-        for (int j = 0; j < numIn; ++j)
-        {
-            const int index = j * blockSize + adv;
-            FloatVectorOperations::copy(audioBufferIn.data() + index, channelPointers[j], numSamples);
-        }
-        for (int j = 0; j < numOut; ++j)
-        {
-            const int index = j * blockSize + adv;
-            FloatVectorOperations::copy(channelPointers[j], audioBufferOut.data() + index, numSamples);
-        }
-        if (midiConsume)
-        {
-            midiBufferIn.addEvents(midiMessages, 0, numSamples, adv);
-        }
-        if (midiProduce)
-        {
-            midiMessages.clear();
-            midiMessages.addEvents(midiBufferOut, adv, numSamples, -adv);
-        }
-        audioAdvancement += numSamples;
-    }
-    // If the current number of samples in this block
-    // is superior to the number of samples required
-    else
-    {
-        // we save the missing input samples, we output
-        // the missing samples of the previous tick and
-        // we call DSP perform method.
-        MidiBuffer const& midiin = midiProduce ? midiBufferTemp : midiMessages;
-        if (midiProduce)
-        {
-            midiBufferTemp.swapWith(midiMessages);
-            midiMessages.clear();
-        }
-
-        for (int j = 0; j < numIn; ++j)
-        {
-            const int index = j * blockSize + adv;
-            FloatVectorOperations::copy(audioBufferIn.data() + index, channelPointers[j], numLeft);
-        }
-        for (int j = 0; j < numOut; ++j)
-        {
-            const int index = j * blockSize + adv;
-            FloatVectorOperations::copy(channelPointers[j], audioBufferOut.data() + index, numLeft);
-        }
-        if (midiConsume)
-        {
-            midiBufferIn.addEvents(midiin, 0, numLeft, adv);
-        }
-        if (midiProduce)
-        {
-            midiMessages.addEvents(midiBufferOut, adv, numLeft, -adv);
-        }
-        audioAdvancement = 0;
-        processInternal();
-
-        // If there are other DSP ticks that can be
-        // performed, then we do it now.
-        int pos = numLeft;
-        while ((pos + blockSize) <= numSamples)
-        {
-            for (int j = 0; j < numIn; ++j)
-            {
-                const int index = j * blockSize;
-                FloatVectorOperations::copy(audioBufferIn.data() + index, channelPointers[j] + pos, blockSize);
-            }
-            for (int j = 0; j < numOut; ++j)
-            {
-                const int index = j * blockSize;
-                FloatVectorOperations::copy(channelPointers[j] + pos, audioBufferOut.data() + index, blockSize);
-            }
-            if (midiConsume)
-            {
-                midiBufferIn.addEvents(midiin, pos, blockSize, 0);
-            }
-            if (midiProduce)
-            {
-                midiMessages.addEvents(midiBufferOut, 0, blockSize, pos);
-            }
-            processInternal();
-            pos += blockSize;
-        }
-
-        // If there are samples that can't be
-        // processed, then save them for later
-        // and outputs the remaining samples
-        const int remaining = numSamples - pos;
-        if (remaining > 0)
-        {
-            for (int j = 0; j < numIn; ++j)
-            {
-                const int index = j * blockSize;
-                FloatVectorOperations::copy(audioBufferIn.data() + index, channelPointers[j] + pos, remaining);
-            }
-            for (int j = 0; j < numOut; ++j)
-            {
-                const int index = j * blockSize;
-                FloatVectorOperations::copy(channelPointers[j] + pos, audioBufferOut.data() + index, remaining);
-            }
-            if (midiConsume)
-            {
-                midiBufferIn.addEvents(midiin, pos, remaining, 0);
-            }
-            if (midiProduce)
-            {
-                midiMessages.addEvents(midiBufferOut, 0, remaining, pos);
-            }
-            audioAdvancement = remaining;
-        }
-    }
-}
 
 void PlugDataAudioProcessor::sendPlayhead()
 {
@@ -852,6 +672,7 @@ AudioProcessorEditor* PlugDataAudioProcessor::createEditor()
 
     if (patches.isEmpty())
     {
+        /*
         auto patchFile = File::createTempFile(".pd");
         patchFile.replaceWithText(defaultPatch);
 
@@ -862,7 +683,7 @@ AudioProcessorEditor* PlugDataAudioProcessor::createEditor()
         patch->setCurrentFile(File());
         patch->setTitle("Untitled Patcher");
 
-        editor->addTab(cnv, true);
+        editor->addTab(cnv, true); */
     }
     else
     {
@@ -944,8 +765,9 @@ void PlugDataAudioProcessor::setStateInformation(const void* data, int sizeInByt
                 auto state = istream.readString();
                 auto location = File(istream.readString());
 
-                auto* patch = loadPatch(state);
-
+                loadPatch(state);
+                
+                /*
                 if ((location.exists() && location.getParentDirectory() == File::getSpecialLocation(File::tempDirectory)) || !location.exists())
                 {
                     patch->setTitle("Untitled Patcher");
@@ -958,7 +780,7 @@ void PlugDataAudioProcessor::setStateInformation(const void* data, int sizeInByt
                     auto parentPath = location.getParentDirectory().getFullPathName();
                     // Add patch path to search path to make sure it finds the externals!
                     libpd_add_to_search_path(parentPath.toRawUTF8());
-                }
+                } */
             }
 
             auto latency = istream.readInt();
@@ -989,65 +811,24 @@ void PlugDataAudioProcessor::setStateInformation(const void* data, int sizeInByt
         });
 }
 
-pd::Patch* PlugDataAudioProcessor::loadPatch(const File& patchFile)
+void PlugDataAudioProcessor::loadPatch(const File& patchFile)
 {
-    // First, check if patch is already opened
-    int i = 0;
-    for(auto* patch : patches) {
-        if(patch->getCurrentFile() == patchFile)
-        {
-            if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
-            {
-                MessageManager::callAsync([i, _editor = Component::SafePointer(editor)]() mutable {
-                    if(!_editor) return;
-                    _editor->tabbar.setCurrentTabIndex(i);
-                    _editor->pd.logError("Patch is already open");
-                });
-            }
-        
-            // Patch is already opened
-            return nullptr;
-        }
-        i++;
-    }
-
-    auto newPatch = openPatch(patchFile);
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tGlobal);
+    message.writeString("OpenPatch");
+    message.writeString(patchFile.getFullPathName());
     
-    if (!newPatch.getPointer())
-    {
-        logError("Couldn't open patch");
-        return nullptr;
-    }
-    
-    auto* patch = patches.add(new pd::Patch(newPatch));
-
-    if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
-    {
-        MessageManager::callAsync([i, patch, _editor = Component::SafePointer(editor)]() mutable {
-            if(!_editor) return;
-            auto* cnv = _editor->canvases.add(new Canvas(*_editor, *patch, nullptr));
-            _editor->addTab(cnv, true);
-        });
-    }
-
-    patch->setCurrentFile(patchFile);
-
-    return patch;
+    messageHandler.sendMessage(message.getMemoryBlock());
 }
 
-pd::Patch* PlugDataAudioProcessor::loadPatch(String patchText)
+void PlugDataAudioProcessor::loadPatch(String patchText)
 {
     if (patchText.isEmpty()) patchText = pd::Instance::defaultPatch;
 
     auto patchFile = File::createTempFile(".pd");
     patchFile.replaceWithText(patchText);
 
-    auto* patch = loadPatch(patchFile);
-
-    // Set to unknown file when loading temp patch
-    patch->setCurrentFile(File());
-
-    return patch;
+    loadPatch(patchFile);
 }
 
 void PlugDataAudioProcessor::setTheme(bool themeToUse)
@@ -1232,30 +1013,58 @@ void PlugDataAudioProcessor::parameterGestureChanged (int parameterIndex, bool g
     
 }
 
-void PlugDataAudioProcessor::receiveDSPState(bool dsp)
-{
-    MessageManager::callAsync(
-        [this, dsp]() mutable
-        {
-            if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
-            {
-                editor->statusbar.powerButton->setToggleState(dsp, dontSendNotification);
-            }
-        });
-}
-
 void PlugDataAudioProcessor::receiveGuiUpdate(int type)
 {
-    callbackType |= (1 << type);
-    
-    if(!isTimerRunning()) {
-
-        startTimer(16);
-    }
 }
 
 void PlugDataAudioProcessor::timerCallback()
 {
+    MemoryBlock messageBlock;
+    
+    size_t receivedSize = 0;
+    unsigned int priority = 0;
+    while(messageHandler.receiveMessages(messageBlock)) {
+        MemoryInputStream istream(messageBlock, false);
+        int type = istream.readInt();
+        
+        if(type == MessageHandler::tGlobal) {
+            String selector = istream.readString();
+            if(selector == "DSP") {
+                auto dsp = istream.readBool();
+                if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
+                {
+                    editor->statusbar.powerButton->setToggleState(dsp, dontSendNotification);
+                }
+            }
+        }
+        if(type == MessageHandler::tPatch) {
+            String canvasID = istream.readString();
+            String selector = istream.readString();
+            if(selector == "Sync") {
+                MemoryBlock block;
+                istream.readIntoMemoryBlock(block);
+                synchroniseCanvas(canvasID, block);
+            }
+        }
+        if(type == MessageHandler::tObject) {
+            String canvasID = istream.readString();
+            String objectID = istream.readString();
+            
+            if(auto* patch = getComponentByID<Canvas>(canvasID)) {
+                auto* obj = patch->getObjectByID(objectID);
+                if(!obj) continue;
+                
+                if(auto* gui = obj->gui.get()) {
+                    MemoryBlock block;
+                    istream.readIntoMemoryBlock(block);
+                    gui->receiveMessage(block);
+                }
+            }
+        }
+        
+    };
+        
+    /*
     if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
     {
         if (!callbackType) return;
@@ -1276,7 +1085,9 @@ void PlugDataAudioProcessor::timerCallback()
         }
 
         callbackType = 0;
-    }
+    } */
+    
+    
 }
 
 void PlugDataAudioProcessor::updateConsole()
@@ -1287,22 +1098,26 @@ void PlugDataAudioProcessor::updateConsole()
     }
 }
 
-void PlugDataAudioProcessor::synchroniseCanvas(void* cnv)
+void PlugDataAudioProcessor::synchroniseCanvas(String cnv, MemoryBlock block)
 {
-    MessageManager::callAsync(
-        [this, cnv]() mutable
+    if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
+    {
+        for (auto* canvas : editor->canvases)
         {
-            if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
+            if (canvas->patch.canvasID == cnv)
             {
-                for (auto* canvas : editor->canvases)
-                {
-                    if (canvas->patch.getPointer() == cnv)
-                    {
-                        canvas->synchronise();
-                    }
-                }
+                canvas->synchronise(block);
+                return;
             }
-        });
+        }
+        
+        // Patch was not found, create a new one!
+        auto* patch = patches.add(new pd::Patch(cnv, this));
+        auto* cnv = editor->canvases.add(new Canvas(*editor, *patch));
+        editor->addTab(cnv, true);
+        
+        cnv->synchronise(block);
+    }
 }
 
 void PlugDataAudioProcessor::titleChanged()

@@ -20,7 +20,7 @@ struct AutomationSlider : public Component {
                 auto* cnv = editor->getCurrentCanvas();
                 if (cnv) {
                     cnv->attachNextObjectToMouse = true;
-                    cnv->objects.add(new Object(cnv, "param " + String(index + 1)));
+                    cnv->objects.add(new Object("text", cnv, "param " + String(index + 1)));
                 }
             }
         };

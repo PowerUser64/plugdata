@@ -182,8 +182,6 @@ class PlugDataPluginEditor : public AudioProcessorEditor, public Value::Listener
     {
         return toolbarButtons[static_cast<int>(type)];
     }
-    
-
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PlugDataPluginEditor)
 };

@@ -42,11 +42,11 @@ typedef struct _clone {
 struct CloneObject final : public TextBase {
     CloneObject(void* obj, Object* object)
         : TextBase(obj, object)
-        , subpatch({ nullptr, nullptr })
+        , subpatch("", nullptr)
     {
         auto* gobj = static_cast<t_gobj*>(ptr);
         if (clone_get_n(gobj) > 0) {
-            subpatch = { clone_get_instance(gobj, 0), cnv->pd };
+            subpatch = {"", cnv->pd };
         }
     }
 

@@ -28,6 +28,7 @@ Storage::Storage(t_glist* patch, Instance* inst)
 {
     instance->getCallbackLock()->enter();
 
+    /*
     for (t_gobj* y = patch->gl_list; y; y = y->g_next) {
         const String name = libpd_get_object_class_name(y);
 
@@ -82,7 +83,7 @@ Storage::Storage(t_glist* patch, Instance* inst)
     SETSYMBOL(argv.data() + 2, gensym("plugdatainfo"));
 
     infoObject = &pd_checkobject(libpd_createobj(infoParent, gensym("text"), argc, argv.data()))->te_g;
-
+     */
     instance->getCallbackLock()->exit();
 }
 

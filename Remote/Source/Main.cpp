@@ -7,8 +7,9 @@
 */
 
 #include <JuceHeader.h>
-#include "MainComponent.h"
+#include "PureData.h"
 
+/*
 //==============================================================================
 class PdRemoteApplication  : public juce::JUCEApplication
 {
@@ -52,8 +53,37 @@ public:
 
 private:
     std::unique_ptr<PureData> pd;
-};
+};*/
 
-//==============================================================================
-// This macro generates the main() routine that launches the app.
-START_JUCE_APPLICATION (PdRemoteApplication)
+
+
+int main(int argc, char *argv[]) { 
+    
+    //Thread::getCurrentThread()->setPriority(Thread::realtimeAudioPriority);
+    
+    // Run in test mode
+    if(argc < 2)  {
+        
+        MessageManager::deleteInstance();
+        return; // Outcomment to enable test mode
+        
+        auto pd = PureData("test_mode");
+
+        while(true)
+        {
+            pd.waitForNextBlock();
+        }
+    }
+
+    auto pd = PureData(String(argv[1]));
+
+    while(true) 
+    {
+        pd.receiveMessages();
+        
+        pd.waitForNextBlock();
+        
+    }
+
+    MessageManager::deleteInstance();
+}

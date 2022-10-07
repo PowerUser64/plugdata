@@ -379,7 +379,7 @@ public:
 
                 auto lastPosition = cnv->viewport->getViewArea().getConstrainedPoint(cnv->getMouseXYRelative() - Point<int>(Object::margin, Object::margin));
                 auto filePath = file.getFullPathName().replaceCharacter('\\', '/');
-                cnv->objects.add(new Object(cnv, "msg " + filePath, lastPosition));
+                cnv->objects.add(new Object("msg", cnv, "msg " + filePath, lastPosition));
             }
         }
     }

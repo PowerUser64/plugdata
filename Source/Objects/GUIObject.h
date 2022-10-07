@@ -60,6 +60,8 @@ struct ObjectBase : public Component
     {
         return false;
     }
+        
+    virtual void receiveMessage(MemoryBlock message) {};
 
     virtual void setText(String const&) {};
 
@@ -129,7 +131,7 @@ struct GUIObject : public ObjectBase
 
     void componentMovedOrResized(Component& component, bool moved, bool resized) override;
 
-    static ObjectBase* createGui(void* ptr, Object* parent);
+    static ObjectBase* createGui(String name, Object* parent);
 
     // Get rid of this mess!!
     virtual ObjectParameters defineParameters();

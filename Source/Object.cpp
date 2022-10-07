@@ -18,8 +18,10 @@ extern "C"
 #include <m_imp.h>
 }
 
-Object::Object(Canvas* parent, const String& name, Point<int> position) : cnv(parent)
+Object::Object(String objectType, Canvas* parent, const String& name, Point<int> position) : cnv(parent)
 {
+    // TODO: don't use this!!!
+    
     setTopLeftPosition(position - Point<int>(margin, margin));
 
     if (cnv->attachNextObjectToMouse)
@@ -33,13 +35,13 @@ Object::Object(Canvas* parent, const String& name, Point<int> position) : cnv(pa
 
     // Open editor for undefined objects
     // Delay the setting of the type to prevent creating an invalid object first
-    if (name.isEmpty())
+    if (objectType.isEmpty())
     {
         setSize(100, height);
     }
     else
     {
-        setType(name);
+        setType(objectType);
     }
 
     // Open the text editor of a new object if it has one
@@ -55,13 +57,16 @@ Object::Object(Canvas* parent, const String& name, Point<int> position) : cnv(pa
     }
 }
 
-Object::Object(void* object, Canvas* parent)
+Object::Object(String objectID, String objectType, Point<int> position, Canvas* parent)
 {
     cnv = parent;
+    
+    setComponentID(objectID);
 
     initialise();
 
-    setType("", object);
+    setType(objectType, true);
+    setTopLeftPosition(position.translated(margin, margin));
 }
 
 Object::~Object()
@@ -205,7 +210,7 @@ void Object::updateBounds()
     resized();
 }
 
-void Object::setType(const String& newType, void* existingObject)
+void Object::setType(const String& newType, bool existingObject)
 {
     // Change object type
     String type = newType.upToFirstOccurrenceOf(" ", false, false);
@@ -222,27 +227,17 @@ void Object::setType(const String& newType, void* existingObject)
             // They will be remade by the synchronise call later
             for (auto* connection : getConnections()) cnv->connections.removeObject(connection);
 
-            objectPtr = pd->renameObject(getPointer(), newType);
-
-            // Synchronise to make sure connections are preserved correctly
-            // Asynchronous because it could possibly delete this object
-            MessageManager::callAsync([cnv = SafePointer(cnv)]() {
-                if(cnv) cnv->synchronise(false);
-            });
+            pd->renameObject(getComponentID(), newType);
         }
         else
         {
             auto rect = getObjectBounds();
-            objectPtr = pd->createObject(newType, rect.getX(), rect.getY());
+            pd->createObject(newType, rect.getX(), rect.getY());
         }
-    }
-    else
-    {
-        objectPtr = existingObject;
     }
 
     // Create gui for the object
-    gui.reset(GUIObject::createGui(objectPtr, this));
+    gui.reset(GUIObject::createGui(newType, this));
 
     if (gui)
     {
@@ -253,7 +248,7 @@ void Object::setType(const String& newType, void* existingObject)
     }
 
     // Update inlets/outlets
-    updatePorts();
+    //updatePorts();
     updateBounds();
 
     cnv->main.updateCommandStatus();
@@ -371,12 +366,15 @@ void Object::resized()
     }
 }
 
-void Object::updatePorts()
+void Object::updatePorts(std::pair<std::vector<bool>, std::vector<bool>> ioletDefinition)
 {
-    if (!getPointer()) return;
+    //if (!getPointer()) return;
 
     // update inlets and outlets
-
+    
+    auto& [inlets, outlets] = ioletDefinition;
+ 
+    
     int oldNumInputs = 0;
     int oldNumOutputs = 0;
 
@@ -385,14 +383,8 @@ void Object::updatePorts()
         iolet->isInlet ? oldNumInputs++ : oldNumOutputs++;
     }
 
-    numInputs = 0;
-    numOutputs = 0;
-
-    if (auto* ptr = pd::Patch::checkObject(getPointer()))
-    {
-        numInputs = libpd_ninlets(ptr);
-        numOutputs = libpd_noutlets(ptr);
-    }
+    numInputs = inlets.size();
+    numOutputs = outlets.size();
 
     while (numInputs < oldNumInputs) iolets.remove(--oldNumInputs);
     while (numInputs > oldNumInputs) iolets.insert(oldNumInputs++, new Iolet(this, true));
@@ -414,11 +406,11 @@ void Object::updatePorts()
         bool isSignal;
         if (i < numInputs)
         {
-            isSignal = libpd_issignalinlet(pd::Patch::checkObject(getPointer()), i);
+            isSignal = inlets[i];
         }
         else
         {
-            isSignal = libpd_issignaloutlet(pd::Patch::checkObject(getPointer()), i - numInputs);
+            isSignal = outlets[i - numInputs];
         }
 
         iolet->ioletIdx = input ? numIn : numOut;
@@ -524,6 +516,7 @@ void Object::mouseUp(const MouseEvent& e)
     {
         originalBounds.setBounds(0, 0, 0, 0);
 
+        /*
         cnv->pd->enqueueFunction(
             [this, object = SafePointer<Object>(this), e]() mutable
             {
@@ -545,7 +538,7 @@ void Object::mouseUp(const MouseEvent& e)
                             if(object) object->cnv->checkBounds();
                         });
                 }
-            });
+            }); */
     }
     else
     {

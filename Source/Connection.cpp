@@ -32,7 +32,7 @@ Connection::Connection(Canvas* parent, Iolet* s, Iolet* e, bool exists) : cnv(pa
     // If it doesn't already exist in pd, create connection in pd
     if (!exists)
     {
-        bool canConnect = parent->patch.createConnection(outobj->getPointer(), outIdx, inobj->getPointer(), inIdx);
+        bool canConnect = parent->patch.createConnection(outobj->getComponentID(), outIdx, inobj->getComponentID(), inIdx);
         
         if (!canConnect)
         {
@@ -426,11 +426,8 @@ void Connection::reconnect(Iolet* target, bool dragged)
     
     for(auto* c : connections) {
         
-        if (cnv->patch.hasConnection(c->outobj->getPointer(), c->outIdx, c->inobj->getPointer(), c->inIdx))
-        {
-            // Delete connection from pd if we haven't done that yet
-            cnv->patch.removeConnection(c->outobj->getPointer(), c->outIdx, c->inobj->getPointer(), c->inIdx);
-        }
+        // Delete connection from pd
+        cnv->patch.removeConnection(c->outobj->getComponentID(), c->outIdx, c->inobj->getComponentID(), c->inIdx);
         
         // Create new connection
         cnv->connectingEdges.add(target->isInlet ? c->inlet : c->outlet);

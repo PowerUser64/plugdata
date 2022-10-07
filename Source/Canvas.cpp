@@ -22,11 +22,12 @@ extern "C"
 
 Canvas::Canvas(PlugDataPluginEditor& parent, pd::Patch& p, Component* parentGraph) : main(parent), pd(&parent.pd), patch(p), storage(patch.getPointer(), pd)
 {
-    isGraphChild = glist_isgraph(p.getPointer());
-    hideNameAndArgs = static_cast<bool>(p.getPointer()->gl_hidetext);
-    xRange = Array<var>{var(p.getPointer()->gl_x1), var(p.getPointer()->gl_x2)};
-    yRange = Array<var>{var(p.getPointer()->gl_y2), var(p.getPointer()->gl_y1)};
-                                                    
+    //isGraphChild = glist_isgraph(p.getPointer());
+    //hideNameAndArgs = static_cast<bool>(p.getPointer()->gl_hidetext);
+    //xRange = Array<var>{var(p.getPointer()->gl_x1), var(p.getPointer()->gl_x2)};
+    //yRange = Array<var>{var(p.getPointer()->gl_y2), var(p.getPointer()->gl_y1)};
+            
+    setComponentID(p.canvasID);
     
     isGraphChild.addListener(this);
     hideNameAndArgs.addListener(this);
@@ -135,10 +136,236 @@ void Canvas::paint(Graphics& g)
     }
 }
 
+void Canvas::synchronise(MemoryBlock syncBlock)
+{
+    MemoryInputStream istream(syncBlock, false);
+    
+    //objects.clear();
+    //connections.clear();
+    
+    Array<std::tuple<String, String, Rectangle<int>, std::vector<bool>, std::vector<bool>>> newObjects;
+    Array<std::tuple<int, String, int, String>> newConnections;
+    
+    while(!istream.isExhausted())
+    {
+        if(istream.readBool() == false)
+        {
+            String id = istream.readString();
+            String name = istream.readString();
+            
+            Rectangle<int> bounds = {
+                istream.readInt(),
+                istream.readInt(),
+                istream.readInt(),
+                istream.readInt()
+            };
+            
+            //auto* obj = objects.add(new Object(id, name, bounds.getPosition(), this));
+            //obj->setObjectBounds(bounds);
+                        
+            auto inlets = std::vector<bool>(istream.readInt());
+            for(int i = 0; i < inlets.size(); i++) {
+                inlets[i] = istream.readBool();
+            }
+            
+            auto outlets = std::vector<bool>(istream.readInt());
+            for(int i = 0; i < outlets.size(); i++) {
+                outlets[i] = istream.readBool();
+            }
+            
+            newObjects.add({id, name, bounds, inlets, outlets});
+            //obj->updatePorts({inlets, outlets});
+        }
+        else {
+            int outIdx = istream.readInt();
+            String outobjID = istream.readString();
+            int inIdx = istream.readInt();
+            String inobjID = istream.readString();
+            
+            auto* outObj = getObjectByID(outobjID);
+            auto* inObj = getObjectByID(inobjID);
+            
+            //auto* inlet = inObj->iolets[inIdx];
+           // auto* outlet = outObj->iolets[outIdx + outObj->numInputs];
+            
+            newConnections.add({outIdx, outobjID, inIdx, inobjID});
+            //connections.add(new Connection(this, inlet, outlet, true));
+        }
+        
+    }
+    
+    auto isObjectDeprecated = [&](Object* obj)
+    {
+        return std::all_of(newObjects.begin(), newObjects.end(), [obj](const auto& obj2){
+            return obj->getComponentID() != std::get<0>(obj2);
+        });
+    };
+
+    if (!(isGraph || presentationMode == var(true)))
+    {
+        // Remove deprecated connections
+        for (int n = connections.size() - 1; n >= 0; n--)
+        {
+            auto* connection = connections[n];
+
+            if (!connection->inlet || !connection->outlet || isObjectDeprecated(connection->inobj) || isObjectDeprecated(connection->outobj))
+            {
+                connections.remove(n);
+            }
+            else
+            {
+                auto inlet = connection->inobj->getComponentID();
+                auto outlet = connection->outobj->getComponentID();
+                
+                if(!newConnections.contains({connection->outIdx, outlet, connection->inIdx, inlet})) {
+                    connections.remove(n);
+                }
+            }
+        }
+    }
+
+    // Clear deleted objects
+    for (int n = objects.size() - 1; n >= 0; n--)
+    {
+        auto* object = objects[n];
+        if (object->gui && isObjectDeprecated(object))
+        {
+            objects.remove(n);
+        }
+    }
+    
+    
+
+    for (auto& [objectID, objectName, bounds, inlets, outlets] : newObjects)
+    {
+        String ID = objectID;
+        auto* it = std::find_if(objects.begin(), objects.end(), [&ID](Object* b) { return b->getComponentID() == ID; });
+
+        if (it == objects.end())
+        {
+            auto* newObject = objects.add(new Object(objectID, objectName, bounds.getPosition(), this));
+            newObject->toFront(false);
+            
+            newObject->updatePorts({inlets, outlets});
+            newObject->setObjectBounds(bounds);
+            
+            // TODO: don't do this on Canvas!!
+            if (newObject->gui && newObject->gui->getLabel()) newObject->gui->getLabel()->toFront(false);
+        }
+        else
+        {
+            auto* object = *it;
+
+            // Check if number of inlets/outlets is correct
+            object->updatePorts({inlets, outlets});
+
+            // Only update positions if we need to and there is a significant difference
+            // There may be rounding errors when scaling the gui, this makes the experience smoother
+            object->setObjectBounds(bounds);
+
+            object->toFront(false);
+            if (object->gui && object->gui->getLabel()) object->gui->getLabel()->toFront(false);
+        }
+    }
+
+    
+    // Make sure objects have the same order
+    std::sort(objects.begin(), objects.end(),
+              [&newObjects](Object* first, Object* second) mutable
+              {
+        size_t idx1 = std::find_if(newObjects.begin(), newObjects.end(), [first](const std::tuple<String, String, Rectangle<int>, std::vector<bool>, std::vector<bool>>& object){
+            return std::get<0>(object) == first->getComponentID();
+        }) - newObjects.begin();
+        size_t idx2 = std::find_if(newObjects.begin(), newObjects.end(), [second](const std::tuple<String, String, Rectangle<int>, std::vector<bool>, std::vector<bool>>& object){
+            return std::get<0>(object) == second->getComponentID();
+        }) - newObjects.begin();
+          return idx1 < idx2;
+      });
+
+    //auto pdConnections = patch.getConnections();
+
+    if (!(isGraph || presentationMode == var(true)))
+    {
+        for (auto& connection : newConnections)
+        {
+            auto& [outno, outobj, inno, inobj] = connection;
+
+            auto* srcObj = getObjectByID(outobj);
+            auto* sinkObj = getObjectByID(inobj);
+            
+            auto& srcEdges = srcObj->iolets;
+            auto& sinkEdges = sinkObj->iolets;
+
+            auto* it = std::find_if(connections.begin(), connections.end(),
+                                   [this, &connection, &srcObj, &sinkObj](Connection* c)
+                                   {
+                                       auto& [outno, outobj, inno, inobj] = connection;
+
+                                       if (!c->inlet || !c->outlet) return false;
+
+                                       bool sameStart = c->outobj == srcObj;
+                                       bool sameEnd = c->inobj == sinkObj;
+
+                                       return c->inIdx == inno && c->outIdx == outno && sameStart && sameEnd;
+                                   });
+
+            if (it == connections.end())
+            {
+                
+                connections.add(new Connection(this, srcEdges[srcObj->numInputs + outno], sinkEdges[inno], true));
+            }
+            else
+            {
+                // Update storage ids for connections
+                auto& c = *(*it);
+
+                c.inIdx = c.inlet->ioletIdx;
+                c.outIdx = c.outlet->ioletIdx;
+                
+                auto currentId = c.getId();
+                if (c.lastId.isNotEmpty() && c.lastId != currentId)
+                {
+                    storage.setInfoId(c.lastId, currentId);
+                }
+
+                c.lastId = currentId;
+
+                auto info = storage.getInfo(currentId, "Path");
+                if (info.length()) c.setState(info);
+
+                c.repaint();
+            }
+        }
+
+        storage.confirmIds();
+
+        setTransform(main.transform);
+    }
+
+    // Resize canvas to fit objects
+    // By checking asynchronously, we make sure the objects bounds have been updated
+    MessageManager::callAsync([_this = SafePointer(this)](){
+        if(!_this) return;
+        _this->pd->waitForStateUpdate();
+        _this->checkBounds();
+    });
+    
+
+    main.updateCommandStatus();
+
+}
+
+
+Object* Canvas::getObjectByID(String ID)
+{
+    return dynamic_cast<Object*>(findChildWithID(ID));
+}
+
 // Synchronise state with pure-data
 // Used for loading and for complicated actions like undo/redo
 void Canvas::synchronise(bool updatePosition)
 {
+    /*
     pd->waitForStateUpdate();
     deselectAll();
 
@@ -301,6 +528,9 @@ void Canvas::synchronise(bool updatePosition)
 
     main.updateCommandStatus();
     repaint();
+     */
+    
+    
 }
 
 void Canvas::updateDrawables()
@@ -645,11 +875,11 @@ bool Canvas::keyPressed(const KeyPress& key)
     auto moveSelection = [this](int x, int y)
     {
         auto objects = getSelectionOfType<Object>();
-        std::vector<void*> pdObjects;
+        StringArray pdObjects;
 
         for (auto* object : objects)
         {
-            pdObjects.push_back(object->getPointer());
+            pdObjects.add(object->getComponentID());
         }
 
         patch.moveObjects(pdObjects, x, y);
@@ -788,27 +1018,23 @@ void Canvas::removeSelection()
     patch.deselectAll();
 
     // Find selected objects and make them selected in pd
-    Array<void*> objects;
+    StringArray objects;
     for (auto* object : getSelectionOfType<Object>())
     {
-        if (object->getPointer())
-        {
-            patch.selectObject(object->getPointer());
-            objects.add(object->getPointer());
-        }
+        objects.add(object->getComponentID());
     }
 
     // remove selection
-    patch.removeSelection();
+    patch.removeSelection(objects);
 
     // Remove connection afterwards and make sure they aren't already deleted
     for (auto* con : connections)
     {
         if (isSelected(con))
         {
-            if (!(objects.contains(con->outobj->getPointer()) || objects.contains(con->inobj->getPointer())))
+            if (!(objects.contains(con->outobj->getComponentID()) || objects.contains(con->inobj->getComponentID())))
             {
-                patch.removeConnection(con->outobj->getPointer(), con->outIdx, con->inobj->getPointer(), con->inIdx);
+                patch.removeConnection(con->outobj->getComponentID(), con->outIdx, con->inobj->getComponentID(), con->inIdx);
             }
         }
     }
@@ -1164,11 +1390,11 @@ void Canvas::handleMouseUp(Component* component, const MouseEvent& e)
 {
     if (didStartDragging)
     {
-        auto objects = std::vector<void*>();
+        auto objects = StringArray();
 
         for (auto* object : getSelectionOfType<Object>())
         {
-            if (object->getPointer()) objects.push_back(object->getPointer());
+            objects.add(object->getComponentID());
         }
 
         auto distance = Point<int>(e.getDistanceFromDragStartX(), e.getDistanceFromDragStartY());
@@ -1193,10 +1419,10 @@ void Canvas::handleMouseUp(Component* component, const MouseEvent& e)
     if(objectSnappingInbetween) {
         auto* c = connectionToSnapInbetween.getComponent();
         
-        patch.removeConnection(c->outobj->getPointer(), c->outIdx, c->inobj->getPointer(), c->inIdx);
+        patch.removeConnection(c->outobj->getComponentID(), c->outIdx, c->inobj->getComponentID(), c->inIdx);
         
-        patch.createConnection(c->outobj->getPointer(), c->outIdx, objectSnappingInbetween->getPointer(), 0);
-        patch.createConnection(objectSnappingInbetween->getPointer(), 0, c->inobj->getPointer(), c->inIdx);
+        patch.createConnection(c->outobj->getComponentID(), c->outIdx, objectSnappingInbetween->getComponentID(), 0);
+        patch.createConnection(objectSnappingInbetween->getComponentID(), 0, c->inobj->getComponentID(), c->inIdx);
         
         objectSnappingInbetween->iolets[0]->isTargeted = false;
         objectSnappingInbetween->iolets[objectSnappingInbetween->numInputs]->isTargeted = false;
@@ -1265,14 +1491,14 @@ void Canvas::handleMouseDrag(const MouseEvent& e)
             auto* outlet = inputs[0]->outlet.getComponent();
             
             for(auto* c : outputs) {
-                patch.removeConnection(c->outobj->getPointer(), c->outIdx, c->inobj->getPointer(), c->inIdx);
+                patch.removeConnection(c->outobj->getComponentID(), c->outIdx, c->inobj->getComponentID(), c->inIdx);
                 
                 connections.add(new Connection(this, outlet, c->inlet, false));
                 connections.removeObject(c);
             }
             
             auto* c = inputs[0];
-            patch.removeConnection(c->outobj->getPointer(), c->outIdx, c->inobj->getPointer(), c->inIdx);
+            patch.removeConnection(c->outobj->getComponentID(), c->outIdx, c->inobj->getComponentID(), c->inIdx);
             connections.removeObject(c);
             
             object->iolets[0]->isTargeted = false;
@@ -1286,14 +1512,14 @@ void Canvas::handleMouseDrag(const MouseEvent& e)
             auto* inlet = outputs[0]->inlet.getComponent();
             
             for(auto* c : inputs) {
-                patch.removeConnection(c->outobj->getPointer(), c->outIdx, c->inobj->getPointer(), c->inIdx);
+                patch.removeConnection(c->outobj->getComponentID(), c->outIdx, c->inobj->getComponentID(), c->inIdx);
                 
                 connections.add(new Connection(this, c->outlet, inlet, false));
                 connections.removeObject(c);
             }
             
             auto* c = outputs[0];
-            patch.removeConnection(c->outobj->getPointer(), c->outIdx, c->inobj->getPointer(), c->inIdx);
+            patch.removeConnection(c->outobj->getComponentID(), c->outIdx, c->inobj->getComponentID(), c->inIdx);
             connections.removeObject(c);
             
             object->iolets[0]->isTargeted = false;
