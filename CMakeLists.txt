@@ -213,11 +213,25 @@ juce_add_plugin(PlugDataMidi
     AU_MAIN_TYPE                kAudioUnitType_MIDIProcessor)
 endif()
 
-add_custom_target(create_zip OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData.cpp ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData.h
-                  COMMAND BinaryBuilder ${CMAKE_CURRENT_BINARY_DIR}/PdRemote/PdRemote ${CMAKE_CURRENT_BINARY_DIR} PdRemoteBinaryData
-                  MAIN_DEPENDENCY PdRemote
-                  DEPENDS BinaryBuilder
-                  VERBATIM)
+
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData)
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteZip)
+
+add_custom_target(CreateZip 
+  COMMAND ${CMAKE_COMMAND} -E tar "cfv" ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteZip/PdRemote.zip --format=zip ${CMAKE_CURRENT_BINARY_DIR}/PdRemote
+  DEPENDS PdRemote
+  )
+
+add_custom_target(CreateBinaryData 
+  COMMAND BinaryBuilder ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteZip ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData PdRemoteBinaryData
+  DEPENDS BinaryBuilder CreateZip
+  )
+
+set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData/PdRemoteBinaryData.cpp PROPERTIES GENERATED 1)
+
+add_library(PdRemoteBinaryData STATIC ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData/PdRemoteBinaryData.cpp)
+target_include_directories(PdRemoteBinaryData INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData)
+add_dependencies(PdRemoteBinaryData CreateBinaryData)
 
 if(APPLE)
 set_target_properties(PlugData PROPERTIES CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
@@ -320,7 +334,6 @@ file(GLOB PlugDataBinaryDataSources
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/InterRegular.ttf
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/plugd_logo.png
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Filesystem.zip
-    ${CMAKE_CURRENT_SOURCE_DIR}/Resources/PdRemote.zip
     )
 
 juce_add_binary_data(PlugDataBinaryData SOURCES ${PlugDataBinaryDataSources})
@@ -342,7 +355,7 @@ endif()
 if(MSVC)
   list(APPEND libs libpthreadVC3)
 elseif(APPLE)
-  target_link_libraries(PlugDataMidi PRIVATE pd-multi ${libs})
+  target_link_libraries(PlugDataMidi PRIVATE pd-multi PdRemoteBinaryData ${libs})
 elseif(UNIX AND NOT APPLE)
   list(APPEND libs curl)
 endif()
@@ -351,12 +364,12 @@ target_link_libraries(PdRemote PRIVATE pd ${libs})
 
 if(MSVC)
 #target_compile_definitions(PlugDataStandalone PRIVATE PD_INTERNAL=0)
-target_link_libraries(PlugDataStandalone PRIVATE pd ${CMAKE_CURRENT_SOURCE_DIR}/Plugins/Standalone/pd.lib PlugDataBinaryData ${libs})
+target_link_libraries(PlugDataStandalone PRIVATE pd ${CMAKE_CURRENT_SOURCE_DIR}/Plugins/Standalone/pd.lib PlugDataBinaryData PdRemoteBinaryData ${libs})
 else()
-target_link_libraries(PlugDataStandalone PRIVATE pd PlugDataBinaryData ${libs})
+target_link_libraries(PlugDataStandalone PRIVATE pd PlugDataBinaryData PdRemoteBinaryData ${libs})
 endif()
-target_link_libraries(PlugData PRIVATE pd-multi PlugDataBinaryData ${libs})
-target_link_libraries(PlugDataFx PRIVATE pd-multi PlugDataBinaryData ${libs})
+target_link_libraries(PlugData PRIVATE pd-multi PlugDataBinaryData PdRemoteBinaryData ${libs})
+target_link_libraries(PlugDataFx PRIVATE pd-multi PlugDataBinaryData PdRemoteBinaryData ${libs})
 
 set_target_properties(PdRemote PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/PdRemote/$<0:>)
 set_target_properties(PlugDataStandalone PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PLUGDATA_PLUGINS_LOCATION})

@@ -3,6 +3,10 @@
 #include <JuceHeader.h>
 #include "../ipc/boost/interprocess/ipc/message_queue.hpp"
 
+#ifdef MESSAGE_HANDLER_GUI
+#include <PdRemoteBinaryData.h>
+#endif
+
 class MessageHandler
 {
     static inline constexpr int bufsize = 1024 * 20;
@@ -55,7 +59,7 @@ public:
             if(!binaryLocation.exists()) {
                 
 #ifdef MESSAGE_HANDLER_GUI
-                MemoryInputStream zippedBinary(BinaryData::PdRemote_zip, BinaryData::PdRemote_zipSize, false);
+                MemoryInputStream zippedBinary(PdRemoteBinaryData::PdRemote_zip, PdRemoteBinaryData::PdRemote_zipSize, false);
                 auto file = ZipFile(zippedBinary);
                 file.uncompressTo(binaryLocation.getParentDirectory());
                 binaryLocation.getChildFile("PdRemote").setExecutePermission(true);
