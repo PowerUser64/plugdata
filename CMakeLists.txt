@@ -213,13 +213,7 @@ juce_add_plugin(PlugDataMidi
     AU_MAIN_TYPE                kAudioUnitType_MIDIProcessor)
 endif()
 
-add_custom_target(create_zip
-
-  COMMAND ${CMAKE_COMMAND} -E tar "cfv" ${CMAKE_CURRENT_SOURCE_DIR}/Resources/PdRemote.zip --format=zip ${CMAKE_CURRENT_BINARY_DIR}/PdRemote
-  DEPENDS PdRemote
-  )
-
-add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData.cpp ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData.h
+add_custom_target(create_zip OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData.cpp ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData.h
                   COMMAND BinaryBuilder ${CMAKE_CURRENT_BINARY_DIR}/PdRemote/PdRemote ${CMAKE_CURRENT_BINARY_DIR} PdRemoteBinaryData
                   MAIN_DEPENDENCY PdRemote
                   DEPENDS BinaryBuilder
@@ -354,7 +348,6 @@ elseif(UNIX AND NOT APPLE)
 endif()
 
 target_link_libraries(PdRemote PRIVATE pd ${libs})
-add_dependencies(PlugDataBinaryData create_zip)
 
 if(MSVC)
 #target_compile_definitions(PlugDataStandalone PRIVATE PD_INTERNAL=0)
