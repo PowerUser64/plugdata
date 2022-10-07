@@ -215,7 +215,7 @@ inline void shared_memory_object::swap(shared_memory_object &other) BOOST_NOEXCE
 
 inline mapping_handle_t shared_memory_object::get_mapping_handle() const BOOST_NOEXCEPT
 {
-   return ipcdetail::mapping_handle_from_file_handle(m_handle);
+      return ipcdetail::mapping_handle_from_file_handle(m_handle);
 }
 
 inline mode_t shared_memory_object::get_mode() const BOOST_NOEXCEPT

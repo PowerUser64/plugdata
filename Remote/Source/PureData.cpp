@@ -103,7 +103,7 @@ PureData::PureData(String ID) : messageHandler(ID, false), midiOutput(deviceMana
     libpd_multi_init();
     libpd_set_verbose(0);
     
-    patches.add(new Patch(messageHandler, libpd_openfile("instantosc.pd", "/Users/timschoen")));
+    //patches.add(new Patch(messageHandler, libpd_openfile("instantosc.pd", "/Users/timschoen")));
     
     synchronise();
     

@@ -89,6 +89,7 @@ public:
     
     void sendLevelMeterStatus(float l, float r, float midiin, float midiout)
     {
+        /*
         boost::interprocess::mapped_region region(*levelmeter_memory, boost::interprocess::read_write);
         
         auto* address = static_cast<float*>(region.get_address());
@@ -96,7 +97,7 @@ public:
         address[0] = l;
         address[1] = r;
         address[2] = midiin;
-        address[3] = midiout;
+        address[3] = midiout; */
     }
     
     std::tuple<float, float, bool, bool> receiveLevelMeterStatus()

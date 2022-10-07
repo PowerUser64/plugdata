@@ -8,8 +8,8 @@ int main(int argc, char *argv[]) {
     // Run in test mode
     if(argc < 2)  {
         
-        MessageManager::deleteInstance();
-        return; // Outcomment to enable test mode
+        //MessageManager::deleteInstance();
+        //return 0; // Outcomment to enable test mode
         
         auto pd = PureData("test_mode");
 
@@ -30,4 +30,5 @@ int main(int argc, char *argv[]) {
     }
 
     MessageManager::deleteInstance();
+    return 0;
 }

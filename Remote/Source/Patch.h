@@ -584,7 +584,7 @@ struct Patch : public PointerWithId
         void* src = getObjectByID(srcID);
         void* sink = getObjectByID(sinkID);
         
-        if(!src || !sink) return;
+        if(!src || !sink) return false;
         
         setCurrent();
         

@@ -310,9 +310,9 @@ void Patch::createObject(String const& name, int x, int y)
     }
 
     if (tokens[0] == "graph" && tokens.size() == 3) {
-        return createGraph(tokens[1], tokens[2].getIntValue(), x, y);
+        //return createGraph(tokens[1], tokens[2].getIntValue(), x, y);
     } else if (tokens[0] == "graph") {
-        return createGraphOnParent(x, y);
+        //return createGraphOnParent(x, y);
     }
 
     t_symbol* typesymbol = gensym("obj");
