@@ -148,7 +148,6 @@ Statusbar::Statusbar(PlugDataAudioProcessor& processor) : pd(processor)
     locked.addListener(this);
     commandLocked.addListener(this);
     
-    
     oversampleSelector.setTooltip("Set oversampling");
     oversampleSelector.setName("statusbar:oversample");
     oversampleSelector.setColour(ComboBox::outlineColourId, Colours::transparentBlack);
@@ -444,6 +443,8 @@ void Statusbar::modifierKeysChanged(const ModifierKeys& modifiers)
 
 void Statusbar::timerCallback()
 {
+    
+    
     modifierKeysChanged(ModifierKeys::getCurrentModifiers());
 }
 
@@ -482,83 +483,19 @@ void Statusbar::defaultZoom()
     zoomLabel.setText("100%", dontSendNotification);
 }
 
-StatusbarSource::StatusbarSource()
+StatusbarSource::StatusbarSource(MessageHandler& m) : messageHandler(m)
 {
-    level[0] = 0.0f;
-    level[1] = 0.0f;
+    startTimer(50);
 }
 
-static bool hasRealEvents(MidiBuffer& buffer)
+
+
+void StatusbarSource::timerCallback()
 {
-    return std::any_of(buffer.begin(), buffer.end(),
-    [](const auto& event){
-        return !event.getMessage().isSysEx();
-    });
-}
-
-void StatusbarSource::processBlock(const AudioBuffer<float>& buffer, MidiBuffer& midiIn, MidiBuffer& midiOut, int channels)
-{
-    auto** channelData = buffer.getArrayOfReadPointers();
-
-    if (channels == 1)
-    {
-        level[1] = 0;
-    }
-    else if (channels == 0)
-    {
-        level[0] = 0;
-        level[1] = 0;
-    }
-
-    for (int ch = 0; ch < channels; ch++)
-    {
-        // TODO: this logic for > 2 channels makes no sense!!
-        auto localLevel = level[ch & 1].load();
-
-        for (int n = 0; n < buffer.getNumSamples(); n++)
-        {
-            float s = std::abs(channelData[ch][n]);
-
-            const float decayFactor = 0.99992f;
-
-            if (s > localLevel)
-                localLevel = s;
-            else if (localLevel > 0.001f)
-                localLevel *= decayFactor;
-            else
-                localLevel = 0;
-        }
-
-        level[ch & 1] = localLevel;
-    }
-
-    auto now = Time::getCurrentTime();
-
-    auto hasInEvents = hasRealEvents(midiIn);
-    auto hasOutEvents = hasRealEvents(midiOut);
-
-    if (!hasInEvents && (now - lastMidiIn).inMilliseconds() > 700)
-    {
-        midiReceived = false;
-    }
-    else if (hasInEvents)
-    {
-        midiReceived = true;
-        lastMidiIn = now;
-    }
-
-    if (!hasOutEvents && (now - lastMidiOut).inMilliseconds() > 700)
-    {
-        midiSent = false;
-    }
-    else if (hasOutEvents)
-    {
-        midiSent = true;
-        lastMidiOut = now;
-    }
-}
-
-void StatusbarSource::prepareToPlay(int nChannels)
-{
-    numChannels = nChannels;
+    auto [l, r, midiin, midiout] = messageHandler.receiveLevelMeterStatus();
+    
+    level[0] = l;
+    level[1] = r;
+    midiReceived = midiin;
+    midiSent = midiout;
 }

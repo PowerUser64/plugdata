@@ -60,20 +60,17 @@ struct Statusbar : public Component, public Value::Listener, public Timer
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Statusbar)
 };
 
-struct StatusbarSource
+struct MessageHandler;
+
+struct StatusbarSource : public Timer
 {
-    StatusbarSource();
+    StatusbarSource(MessageHandler& m);
 
-    void processBlock(const AudioBuffer<float>& buffer, MidiBuffer& midiIn, MidiBuffer& midiOut, int outChannels);
-
-    void prepareToPlay(int numChannels);
-
+    void timerCallback() override;
+    
     std::atomic<bool> midiReceived = false;
     std::atomic<bool> midiSent = false;
     std::atomic<float> level[2] = {0};
-
-    int numChannels;
-
-    Time lastMidiIn;
-    Time lastMidiOut;
+    
+    MessageHandler& messageHandler;
 };

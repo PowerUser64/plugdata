@@ -16,11 +16,15 @@ struct TextBase : public ObjectBase
 
     void applyBounds() override
     {
+        /*
         auto b = object->getObjectBounds();
-        libpd_moveobj(cnv->patch.getPointer(), static_cast<t_gobj*>(ptr), b.getX(), b.getY());
-
-        auto* textObj = static_cast<t_text*>(ptr);
-        textObj->te_width = textObjectWidth;
+        libpd_moveobj(cnv->patch.getPointer(), static_cast<t_gobj*>(ptr), b.getX(), b.getY()); */
+        
+        MemoryOutputStream message;
+        message.writeString(cnv->getComponentID());
+        message.writeString(object->getComponentID());
+        message.writeString("SetWidth");
+        message.writeInt(textObjectWidth);
     }
 
     void resized() override

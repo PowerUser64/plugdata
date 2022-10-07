@@ -405,68 +405,52 @@ void Patch::renameObject(String objectID, String const& name)
     message.writeString(name);
     
     instance->messageHandler.sendMessage(message.getMemoryBlock());
-    /*
-
-    auto type = name.upToFirstOccurrenceOf(" ", false, false);
-    String newName = name;
-    // Also apply default style when renaming
-    if (guiDefaults.find(type) != guiDefaults.end()) {
-        auto preset = guiDefaults.at(type);
-
-        auto bg = instance->getBackgroundColour().toString().substring(2);
-        auto fg = instance->getForegroundColour().toString().substring(2);
-        auto lbl = instance->getTextColour().toString().substring(2);
-        auto ln = instance->getOutlineColour().toString().substring(2);
-
-        preset = preset.replace("bgColour", "#" + bg);
-        preset = preset.replace("fgColour", "#" + fg);
-        preset = preset.replace("lblColour", "#" + lbl);
-        preset = preset.replace("lnColour", "#" + ln);
-
-        newName += " " + preset;
-    }
-
-    instance->enqueueFunction([this, obj, newName]() mutable {
-        setCurrent();
-        libpd_renameobj(getPointer(), &checkObject(obj)->te_g, newName.toRawUTF8(), newName.getNumBytesAsUTF8());
-
-        // make sure that creating a graph doesn't leave it as the current patch
-        setCurrent();
-    });
-
-    instance->waitForStateUpdate();
-
-    return libpd_newest(getPointer()); */
 }
 
-void Patch::copy()
+void Patch::copy(StringArray objectIDs)
 {
-    /*
-    instance->enqueueFunction(
-        [this]() {
-            int size;
-            const char* text = libpd_copy(getPointer(), &size);
-            auto copied = String::fromUTF8(text, size);
-            MessageManager::callAsync([copied]() mutable { SystemClipboard::copyTextToClipboard(copied); });
-        }); */
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("Copy");
+
+    message.writeString("#");
+    for(auto& ID : objectIDs) {
+        message.writeString(ID);
+    }
+    message.writeString("#");
+    
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 void Patch::paste()
 {
-    /*
-    auto text = SystemClipboard::getTextFromClipboard();
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("Paste");
 
-    instance->enqueueFunction([this, text]() mutable { libpd_paste(getPointer(), text.toRawUTF8()); }); */
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
-void Patch::duplicate()
+void Patch::duplicate(StringArray objectIDs)
 {
-    /*
-    instance->enqueueFunction(
-        [this]() {
-            setCurrent();
-            libpd_duplicate(getPointer());
-        }); */
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("Duplicate");
+
+    message.writeString("#");
+    for(auto& ID : objectIDs) {
+        message.writeString(ID);
+    }
+    message.writeString("#");
+
+    
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 void Patch::selectObject(void* obj)
@@ -613,32 +597,24 @@ void Patch::endUndoSequence(String name)
 
 void Patch::undo()
 {
-    /*
-    instance->enqueueFunction(
-        [this]() {
-            setCurrent();
-            glist_noselect(getPointer());
-            EDITOR->canvas_undo_already_set_move = 0;
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("Undo");
 
-            libpd_undo(getPointer());
-
-            setCurrent();
-        }); */
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 void Patch::redo()
 {
-    /*
-    instance->enqueueFunction(
-        [this]() {
-            setCurrent();
-            glist_noselect(getPointer());
-            EDITOR->canvas_undo_already_set_move = 0;
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tPatch);
+    message.writeString(canvasID);
+    
+    message.writeString("Redo");
 
-            libpd_redo(getPointer());
-
-            setCurrent();
-        }); */
+    instance->messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 void Patch::setZoom(int newZoom)

@@ -142,6 +142,7 @@ public:
     
     void receiveMessages();
     
+    void processPrint(const char* s);
     void processMessage(Message mess);
     void processMidiEvent(midievent event);
     void processSend(dmessage mess);
@@ -165,7 +166,12 @@ public:
     void sendSysEx(int const port, int const byte) const;
     void sendSysRealTime(int const port, int const byte) const;
     void sendMidiByte(int const port, int const byte) const;
-
+    
+    void processStatusbar(const AudioBuffer<float>& buffer, MidiBuffer& midiIn, MidiBuffer& midiOut);
+    
+    void sendPing();
+    
+    bool shouldQuit();
     
 private:
     
@@ -199,12 +205,13 @@ private:
     uint8 midiByteBuffer[512] = {0};
     size_t midiByteIndex = 0;
 
-    int minIn = 2;
-    int minOut = 2;
+    int numInputChannels = 2;
+    int numOutputChannels = 2;
     
     float volume = 1.0f;
     
     bool dspState = true;
+    bool connectionLost = false;
     
     MessageHandler messageHandler;
     
@@ -213,6 +220,14 @@ private:
     WaitableEvent audioProcessSemaphore;
     WaitableEvent audioDoneSemaphore;
     juce::AudioSourceChannelInfo sharedBuffer;
+    
+    Time lastMidiIn;
+    Time lastMidiOut;
+    
+    char printConcatBuffer[2048];
+    
+    uint32 lastPingMs;
+    bool connectionEstablished = false;
 
     struct internal;
     

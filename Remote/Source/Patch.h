@@ -126,6 +126,19 @@ struct Object : public PointerWithId
         updateWidth();
     }
     
+    void receiveMessage(MemoryBlock message)
+    {
+        MemoryInputStream istream(message, false);
+        
+        auto selector = istream.readString();
+        if(selector == "SetWidth") {
+            getPointer<t_text*>()->te_width = istream.readInt();
+        }
+        if(selector == "RequestSync") {
+            synchronise();
+        }
+    }
+    
     void updateWidth() {
         MemoryOutputStream message;
         message.writeInt(MessageHandler::tObject);
@@ -485,8 +498,19 @@ struct Patch : public PointerWithId
         //return libpd_newest(getPointer<t_canvas*>());
     }
 
-    void copy()
+    void copy(std::vector<void*> const& items)
     {
+        
+        setCurrent();
+
+        glist_noselect(getPointer<t_canvas*>());
+
+        for (auto* obj : items) {
+            if (!obj) continue;
+
+            glist_select(getPointer<t_canvas*>(), &checkObject(obj)->te_g);
+        }
+        
         int size;
         const char* text = libpd_copy(getPointer<t_canvas*>(), &size);
         auto copied = String::fromUTF8(text, size);
@@ -498,12 +522,27 @@ struct Patch : public PointerWithId
         auto text = SystemClipboard::getTextFromClipboard();
 
         libpd_paste(getPointer<t_canvas*>(), text.toRawUTF8());
+        
+        synchronise();
+        sendSelectionToGUI();
     }
 
-    void duplicate()
+    void duplicate(std::vector<void*> const& items)
     {
         setCurrent();
+        
+        glist_noselect(getPointer<t_canvas*>());
+
+        for (auto* obj : items) {
+            if (!obj) continue;
+
+            glist_select(getPointer<t_canvas*>(), &checkObject(obj)->te_g);
+        }
+        
         libpd_duplicate(getPointer<t_canvas*>());
+    
+        synchronise();
+        sendSelectionToGUI();
     }
 
     void selectObject(void* obj)
@@ -573,13 +612,13 @@ struct Patch : public PointerWithId
         synchronise();
     }
 
-    void moveObjects(std::vector<void*> const& objects, int dx, int dy)
+    void moveObjects(std::vector<void*> const& items, int dx, int dy)
     {
         setCurrent();
 
         glist_noselect(getPointer<t_canvas*>());
 
-        for (auto* obj : objects) {
+        for (auto* obj : items) {
             if (!obj)
                 continue;
 
@@ -599,13 +638,13 @@ struct Patch : public PointerWithId
         libpd_finishremove(getPointer<t_canvas*>());
     }
 
-    void removeObjects(std::vector<void*> const& objects)
+    void removeObjects(std::vector<void*> const& items)
     {
         setCurrent();
         
         glist_noselect(getPointer<t_canvas*>());
 
-        for (auto* obj : objects) {
+        for (auto* obj : items) {
             if (!obj)
                 continue;
 
@@ -637,6 +676,7 @@ struct Patch : public PointerWithId
         libpd_undo(getPointer<t_canvas*>());
 
         setCurrent();
+        synchronise();
     }
 
     void redo()
@@ -648,6 +688,7 @@ struct Patch : public PointerWithId
         libpd_redo(getPointer<t_canvas*>());
 
         setCurrent();
+        synchronise();
     }
 
     void setZoom(int newZoom)
@@ -687,7 +728,32 @@ struct Patch : public PointerWithId
         canvas_unbind(getPointer<t_canvas*>());
         getPointer<t_canvas*>()->gl_name = gensym(title.toRawUTF8());
         canvas_bind(getPointer<t_canvas*>());
-        //instance->titleChanged();
+    }
+    
+    void sendSelectionToGUI()
+    {
+        StringArray selection;
+        for (auto& object : objects)
+        {
+            if (glist_isselected(getPointer<t_glist*>(), object.getPointer<t_gobj*>()))
+            {
+                selection.add(object.getID());
+            }
+        }
+        
+        MemoryOutputStream message;
+        message.writeInt(MessageHandler::tPatch);
+        message.writeString(getID());
+        
+        message.writeString("Select");
+
+        message.writeString("#");
+        for(auto& ID : selection) {
+            message.writeString(ID);
+        }
+        message.writeString("#");
+        
+        messageHandler.sendMessage(message.getMemoryBlock());
     }
     
     void receiveMessage(MemoryBlock message) {
@@ -759,7 +825,56 @@ struct Patch : public PointerWithId
 
             removeConnection(outObj, outIdx, inObj, inIdx);
         }
+        if(selector == "Copy") {
             
+            // Start of selection
+            jassert(istream.readString() == "#");
+            
+            std::vector<void*> objects;
+            
+            while(!istream.isExhausted())  {
+                auto itemID = istream.readString();
+                
+                // End of selection
+                if(itemID == "#") break;
+                
+                objects.push_back(getObjectByID(itemID));
+            }
+            
+            copy(objects);
+        }
+        if(selector == "Paste") {
+            paste();
+        }
+        if(selector == "Duplicate") {
+            
+            // Start of selection
+            jassert(istream.readString() == "#");
+            
+            std::vector<void*> objects;
+            
+            while(!istream.isExhausted())  {
+                auto itemID = istream.readString();
+                
+                // End of selection
+                if(itemID == "#") break;
+                
+                objects.push_back(getObjectByID(itemID));
+            }
+            
+            duplicate(objects);
+        }
+        if(selector == "Undo") {
+            undo();
+        }
+        if(selector == "Redo") {
+            redo();
+        }
+        if(selector == "Encapsulate") {
+        }
+        if(selector == "RequestSync") {
+            synchronise();
+        }
         
     }
 

@@ -516,6 +516,7 @@ void Object::mouseUp(const MouseEvent& e)
     {
         originalBounds.setBounds(0, 0, 0, 0);
 
+        gui->applyBounds();
         /*
         cnv->pd->enqueueFunction(
             [this, object = SafePointer<Object>(this), e]() mutable
@@ -527,7 +528,7 @@ void Object::mouseUp(const MouseEvent& e)
                 auto* canvas = static_cast<t_canvas*>(cnv->patch.getPointer());
                 libpd_undo_apply(canvas, obj);
 
-                gui->applyBounds();
+               
 
                 // To make sure it happens after setting object bounds
                 if (!cnv->viewport->getViewArea().contains(getBounds()))

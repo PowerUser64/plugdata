@@ -20,6 +20,7 @@ extern "C" {
 #include "concurrentqueue.h"
 #include "../Utility/FastStringWidth.h"
 
+#define MESSAGE_HANDLER_GUI
 #include "../../Remote/Source/MessageHandler.h"
 
 namespace pd {

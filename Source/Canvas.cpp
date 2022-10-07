@@ -947,15 +947,16 @@ void Canvas::hideAllActiveEditors()
 
 void Canvas::copySelection()
 {
-    // Tell pd to select all objects that are currently selected
+    
+    StringArray objectIDs;
     for (auto* object : getSelectionOfType<Object>())
     {
-        patch.selectObject(object->getPointer());
+        objectIDs.add(object->getComponentID());
     }
 
-    // Tell pd to copy
-    patch.copy();
-    patch.deselectAll();
+    // Tell pd to duplicate
+    patch.copy(objectIDs);
+    //patch.deselectAll();
 }
 
 void Canvas::pasteSelection()
@@ -963,6 +964,7 @@ void Canvas::pasteSelection()
     // Tell pd to paste
     patch.paste();
     
+    /*
     int oldSize = objects.size();
 
     // Load state from pd, don't update positions
@@ -980,33 +982,21 @@ void Canvas::pasteSelection()
     }
     sys_unlock();
 
-    patch.deselectAll();
+    patch.deselectAll(); */
 }
 
 void Canvas::duplicateSelection()
 {
     // Tell pd to select all objects that are currently selected
+    
+    StringArray objectIDs;
     for (auto* object : getSelectionOfType<Object>())
     {
-        patch.selectObject(object->getPointer());
+        objectIDs.add(object->getComponentID());
     }
 
     // Tell pd to duplicate
-    patch.duplicate();
-
-    // Load state from pd, don't update positions
-    synchronise(false);
-
-    // Select the newly duplicated objects
-    for (auto* object : objects)
-    {
-        if (glist_isselected(patch.getPointer(), static_cast<t_gobj*>(object->getPointer())))
-        {
-            setSelected(object, true);
-        }
-    }
-
-    patch.deselectAll();
+    patch.duplicate(objectIDs);
 }
 
 void Canvas::removeSelection()

@@ -84,7 +84,7 @@ struct PureData::internal {
 
     static void multi_print(PureData* ptr, char const* s)
     {
-        //ptr->consoleHandler.processPrint(s);
+        ptr->processPrint(s);
     }
 };
 }
@@ -101,11 +101,9 @@ PureData::PureData(String ID) : messageHandler(ID, false), midiOutput(deviceMana
     midiBufferCopy.ensureSize(2048);
     
     libpd_multi_init();
+    libpd_set_verbose(0);
     
     patches.add(new Patch(messageHandler, libpd_openfile("instantosc.pd", "/Users/timschoen")));
-    
-    
-    std::cout << glist_fontwidth(patches.getFirst()->getPointer<t_glist*>()) << std::endl;
     
     synchronise();
     
@@ -114,12 +112,12 @@ PureData::PureData(String ID) : messageHandler(ID, false), midiOutput(deviceMana
         && ! juce::RuntimePermissions::isGranted (juce::RuntimePermissions::recordAudio))
     {
         juce::RuntimePermissions::request (juce::RuntimePermissions::recordAudio,
-                                           [&] (bool granted) { setAudioChannels (granted ? 2 : 0, 2); });
+                                           [&] (bool granted) { setAudioChannels (granted ? numInputChannels : 0, numOutputChannels); });
     }
     else
     {
         // Specify the number of input and output channels that we want to open
-        setAudioChannels (2, 2);
+        setAudioChannels (numInputChannels, numOutputChannels);
     }
     
     m_midi_receiver = libpd_multi_midi_new(this, reinterpret_cast<t_libpd_multi_noteonhook>(internal::multi_noteon), reinterpret_cast<t_libpd_multi_controlchangehook>(internal::multi_controlchange), reinterpret_cast<t_libpd_multi_programchangehook>(internal::multi_programchange),
@@ -167,6 +165,7 @@ PureData::PureData(String ID) : messageHandler(ID, false), midiOutput(deviceMana
 
     register_gui_triggers(static_cast<t_pdinstance*>(m_instance), this, gui_trigger, panel_trigger, synchronise_trigger, parameter_trigger);
     
+    sendPing();
     
 }
 
@@ -180,14 +179,14 @@ PureData::~PureData()
 void PureData::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
     const auto blksize = static_cast<size_t>(libpd_blocksize());
-    const auto numIn = std::max(static_cast<size_t>(2), static_cast<size_t>(2));
-    const auto nouts = std::max(static_cast<size_t>(2), static_cast<size_t>(2));
-    audioBufferIn.resize(numIn * blksize);
-    audioBufferOut.resize(nouts * blksize);
+    const auto numIn = std::max(static_cast<size_t>(numInputChannels), static_cast<size_t>(2));
+    const auto nouts = std::max(static_cast<size_t>(numOutputChannels), static_cast<size_t>(2));
+    audioBufferIn.resize(numInputChannels * blksize);
+    audioBufferOut.resize(numOutputChannels * blksize);
     std::fill(audioBufferOut.begin(), audioBufferOut.end(), 0.f);
     std::fill(audioBufferIn.begin(), audioBufferIn.end(), 0.f);
 
-    libpd_init_audio(2, 2, sampleRate);
+    libpd_init_audio(numInputChannels, numOutputChannels, sampleRate);
     libpd_start_message(1); // one entry in list
     libpd_add_float(1.0f);
     libpd_finish_message("pd", "dsp");
@@ -217,12 +216,13 @@ void PureData::processInternal(bool without_dsp)
 
     
     // Process audio
-    FloatVectorOperations::copy(audioBufferIn.data() + (2 * 64), audioBufferOut.data() + (2 * 64), (minOut - 2) * 64);
+    /*
+    FloatVectorOperations::copy(audioBufferIn.data() + ( * 64), audioBufferOut.data() + (2 * 64), (minOut - 2) * 64); */
     libpd_process_raw(audioBufferIn.data(), audioBufferOut.data());
     
     float gain = volume * static_cast<float>(dspState);
     
-    FloatVectorOperations::multiply(audioBufferOut.data(), gain, 2 * 64);
+    FloatVectorOperations::multiply(audioBufferOut.data(), gain, numOutputChannels * 64);
 }
 
 void PureData::sendNoteOn(int const channel, int const pitch, int const velocity) const
@@ -360,6 +360,47 @@ void PureData::synchronise() {
     }
 }
 
+void PureData::processPrint(const char* s)
+{
+    auto forwardMessage = [this](String s){
+        MemoryOutputStream message;
+        message.writeInt(MessageHandler::tGlobal);
+        message.writeString("Console");
+        message.writeString(s);
+        messageHandler.sendMessage(message.getMemoryBlock());
+    };
+    
+    static int length = 0;
+    printConcatBuffer[length] = '\0';
+
+    int len = (int)strlen(s);
+    while (length + len >= 2048) {
+        int d = 2048 - 1 - length;
+        strncat(printConcatBuffer, s, d);
+
+        // Send concatenated line to PlugData!
+        forwardMessage(String::fromUTF8(printConcatBuffer));
+
+        s += d;
+        len -= d;
+        length = 0;
+        printConcatBuffer[0] = '\0';
+    }
+
+    strncat(printConcatBuffer, s, len);
+    length += len;
+
+    if (length > 0 && printConcatBuffer[length - 1] == '\n') {
+        printConcatBuffer[length - 1] = '\0';
+
+        // Send concatenated line to PlugData!
+
+        forwardMessage(String::fromUTF8(printConcatBuffer));
+    
+        length = 0;
+    }
+}
+
 void PureData::processMessage(Message mess)
 {
     if (mess.destination == "param") {
@@ -488,7 +529,6 @@ void PureData::receiveMidiByte(const int port, const int byte)
 
 void PureData::waitForNextBlock()
 {
-
     bool triggered = audioProcessSemaphore.wait(5);
     
     if(!triggered) {
@@ -626,8 +666,10 @@ void PureData::waitForNextBlock()
             audioAdvancement = remaining;
         }
     }
+    processStatusbar(*sharedBuffer.buffer, midiBufferIn, midiBufferOut);
     
     audioDoneSemaphore.signal();
+
 }
 
 void PureData::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
@@ -677,15 +719,45 @@ void PureData::receiveMessages()
             auto ID = istream.readString();
             auto* patch = getPatchByID(ID);
             
+            
             MemoryBlock message;
             istream.readIntoMemoryBlock(message);
             
             patch->receiveMessage(message);
         }
+        if(type == MessageHandler::tObject)
+        {
+            auto patchID = istream.readString();
+            auto objectID = istream.readString();
+            
+            MemoryBlock message;
+            istream.readIntoMemoryBlock(message);
+            
+            auto* patch = getPatchByID(patchID);
+            
+            for(auto& object : patch->objects)
+            {
+                if(object.getID() == objectID)
+                {
+                    object.receiveMessage(message);
+                }
+            }
+        }
         if(type == MessageHandler::tGlobal)
         {
             auto selector = istream.readString();
-            if(selector == "OpenPatch")
+            if(selector == "Ping")
+            {
+                lastPingMs = Time::getCurrentTime().getMillisecondCounter();
+                connectionEstablished = true;
+                sendPing();
+            }
+            else if(selector == "Quit")
+            {
+                connectionEstablished = true;
+                connectionLost = true;
+            }
+            else if(selector == "OpenPatch")
             {
                 auto file = File(istream.readString());
 
@@ -706,17 +778,18 @@ void PureData::receiveMessages()
             }
             else if(selector == "AudioStatus")
             {
-                auto numIn = istream.readInt();
-                auto numOut = istream.readInt();
+                numInputChannels = istream.readInt();
+                numOutputChannels = istream.readInt();
                 auto state = XmlDocument(istream.readString()).getDocumentElement();
                 
                 // this is ridiculous, but it works
                 // if we don't run it on another thread, we risk deadlock
-                Thread::launch([this, numIn, numOut, s = state.release()]() mutable {
+                Thread::launch([this, s = state.release()]() mutable {
                     
                     MessageManager::getInstance()->setCurrentThreadAsMessageThread();
                     
-                    deviceManager.initialise(numIn, numOut, s, true);
+                    setAudioChannels(numInputChannels, numOutputChannels, s);
+
                     delete s;
                     
                     for(auto& midiInput : MidiInput::getAvailableDevices()) {
@@ -743,7 +816,109 @@ void PureData::receiveMessages()
                 libpd_set_float(&av, state);
                 libpd_message("pd", "dsp", 1, &av);
             }
-            
+            else if(selector == "SearchPaths") {
+                
+                libpd_clear_search_path();
+                
+                // Start of list
+                jassert(istream.readString() == "#");
+                
+                std::vector<void*> objects;
+                
+                while(!istream.isExhausted())  {
+                    auto path = istream.readString();
+                    
+                    // End of list
+                    if(path == "#") break;
+                    
+                    libpd_add_to_search_path(path.toRawUTF8());
+                }
+                
+            }
         }
     }
+    
+    if(connectionEstablished &&  (Time::getCurrentTime().getMillisecondCounter() - lastPingMs) > 8000) {
+        connectionLost = true;
+    }
+}
+
+static bool hasRealEvents(MidiBuffer& buffer)
+{
+    return std::any_of(buffer.begin(), buffer.end(),
+    [](const auto& event){
+        return !event.getMessage().isSysEx();
+    });
+}
+
+void PureData::processStatusbar(const AudioBuffer<float>& buffer, MidiBuffer& midiIn, MidiBuffer& midiOut)
+{
+    auto level = std::vector<float>(2);
+    bool midiSent = false;
+    bool midiReceived = false;
+    
+    auto** channelData = buffer.getArrayOfReadPointers();
+
+    for (int ch = 0; ch < buffer.getNumChannels(); ch++)
+    {
+        // TODO: this logic for > 2 channels makes no sense!!
+        auto localLevel = level[ch & 1];
+
+        for (int n = 0; n < buffer.getNumSamples(); n++)
+        {
+            float s = std::abs(channelData[0][n]);
+
+            const float decayFactor = 0.99992f;
+
+            if (s > localLevel)
+                localLevel = s;
+            else if (localLevel > 0.001f)
+                localLevel *= decayFactor;
+            else
+                localLevel = 0;
+        }
+
+        level[ch & 1] = localLevel;
+    }
+
+    auto now = Time::getCurrentTime();
+
+    
+    auto hasInEvents = hasRealEvents(midiIn);
+    auto hasOutEvents = hasRealEvents(midiOut);
+
+    if (!hasInEvents && (now - lastMidiIn).inMilliseconds() > 700)
+    {
+        midiReceived = false;
+    }
+    else if (hasInEvents)
+    {
+        midiReceived = true;
+        lastMidiIn = now;
+    }
+
+    if (!hasOutEvents && (now - lastMidiOut).inMilliseconds() > 700)
+    {
+        midiSent = false;
+    }
+    else if (hasOutEvents)
+    {
+        midiSent = true;
+        lastMidiOut = now;
+    }
+    
+    messageHandler.sendLevelMeterStatus(level[0], level[1], midiReceived, midiSent);
+}
+
+
+void PureData::sendPing()
+{
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tGlobal);
+    message.writeString("Ping");
+    messageHandler.sendMessage(message.getMemoryBlock());
+}
+
+bool PureData::shouldQuit() {
+    return connectionLost;
 }

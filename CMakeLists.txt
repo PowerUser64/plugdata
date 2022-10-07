@@ -212,6 +212,11 @@ juce_add_plugin(PlugDataMidi
     AU_MAIN_TYPE                kAudioUnitType_MIDIProcessor)
 endif()
 
+add_custom_target(create_zip 
+  COMMAND ${CMAKE_COMMAND} -E tar "cfv" ${CMAKE_CURRENT_SOURCE_DIR}/Resources/PdRemote.zip --format=zip ${CMAKE_CURRENT_BINARY_DIR}/PdRemote
+  DEPENDS PdRemote
+  )
+
 if(APPLE)
 set_target_properties(PlugData PROPERTIES CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
 set_target_properties(PlugDataFx PROPERTIES CMAKE_XCODE_ATTRIBUTE_CLANG_CXX_LIBRARY "libc++")
@@ -313,6 +318,7 @@ file(GLOB PlugDataBinaryDataSources
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/InterRegular.ttf
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/plugd_logo.png
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Filesystem.zip
+    ${CMAKE_CURRENT_SOURCE_DIR}/Resources/PdRemote.zip
     )
 
 juce_add_binary_data(PlugDataBinaryData SOURCES ${PlugDataBinaryDataSources})
@@ -340,7 +346,8 @@ elseif(UNIX AND NOT APPLE)
   list(APPEND libs curl)
 endif()
 
-target_link_libraries(PdRemote PRIVATE pd ${libs})
+target_link_libraries(PdRemote PRIVATE pd juce::juce_audio_utils juce::juce_dsp)
+add_dependencies(PlugDataBinaryData create_zip)
 
 if(MSVC)
 #target_compile_definitions(PlugDataStandalone PRIVATE PD_INTERNAL=0)
@@ -351,6 +358,7 @@ endif()
 target_link_libraries(PlugData PRIVATE pd-multi ${libs})
 target_link_libraries(PlugDataFx PRIVATE pd-multi ${libs})
 
+set_target_properties(PdRemote PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/PdRemote/$<0:>)
 set_target_properties(PlugDataStandalone PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${PLUGDATA_PLUGINS_LOCATION})
 set_target_properties(PlugDataStandalone PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${PLUGDATA_PLUGINS_LOCATION})
 

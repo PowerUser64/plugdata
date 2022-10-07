@@ -39,6 +39,7 @@ AudioProcessor::BusesProperties PlugDataAudioProcessor::buildBusesProperties()
 PlugDataAudioProcessor::PlugDataAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
     : AudioProcessor(buildBusesProperties()),
+      statusbarSource(messageHandler),
 #endif
       pd::Instance("PlugData"),
       parameters(*this, nullptr)
@@ -286,18 +287,14 @@ void PlugDataAudioProcessor::saveSettings()
 
 void PlugDataAudioProcessor::updateSearchPaths()
 {
+    StringArray searchPaths;
+    
     // Reload pd search paths from settings
     auto pathTree = settingsTree.getChildWithName("Paths");
 
-    setThis();
-    
-    getCallbackLock()->enter();
-    
-    libpd_clear_search_path();
     for (auto child : pathTree)
     {
-        auto path = child.getProperty("Path").toString();
-        libpd_add_to_search_path(path.toRawUTF8());
+        searchPaths.add(child.getProperty("Path").toString());
     }
 
     // Add ELSE path
@@ -305,15 +302,26 @@ void PlugDataAudioProcessor::updateSearchPaths()
     if (elsePath.exists())
     {
         auto location = elsePath.getFullPathName();
-        libpd_add_to_search_path(location.toRawUTF8());
+        searchPaths.add(location);
     }
     
     for (auto path : DekenInterface::getExternalPaths())
     {
-        libpd_add_to_search_path(path.toRawUTF8());
+        searchPaths.add(path);
     }
+    
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tGlobal);
+    
+    message.writeString("SearchPaths");
 
-    getCallbackLock()->exit();
+    message.writeString("#");
+    for(auto& path : searchPaths) {
+        message.writeString(path);
+    }
+    message.writeString("#");
+    
+    messageHandler.sendMessage(message.getMemoryBlock());
 }
 
 const String PlugDataAudioProcessor::getName() const
@@ -420,8 +428,6 @@ void PlugDataAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBloc
     midiByteBuffer[2] = 0;
 
     startDSP();
-
-    statusbarSource.prepareToPlay(getTotalNumOutputChannels());
 }
 
 void PlugDataAudioProcessor::releaseResources()
@@ -1029,6 +1035,9 @@ void PlugDataAudioProcessor::timerCallback()
         
         if(type == MessageHandler::tGlobal) {
             String selector = istream.readString();
+            if(selector == "Ping") {
+                messageHandler.ping.pingReceived();
+            }
             if(selector == "DSP") {
                 auto dsp = istream.readBool();
                 if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
@@ -1036,6 +1045,19 @@ void PlugDataAudioProcessor::timerCallback()
                     editor->statusbar.powerButton->setToggleState(dsp, dontSendNotification);
                 }
             }
+            if(selector == "Console") {
+                auto message = istream.readString();
+                if (message.startsWith("error:")) {
+                    logError(message.substring(7));
+                } else if (message.startsWith("verbose(4):")) {
+                    logError(message.substring(12));
+                } else {
+                    logMessage(message);
+                }
+                
+            }
+
+            
         }
         if(type == MessageHandler::tPatch) {
             String canvasID = istream.readString();
@@ -1044,6 +1066,25 @@ void PlugDataAudioProcessor::timerCallback()
                 MemoryBlock block;
                 istream.readIntoMemoryBlock(block);
                 synchroniseCanvas(canvasID, block);
+            }
+            if(selector == "Select") {
+                if(auto* patch = getComponentByID<Canvas>(canvasID)) {
+                    jassert(istream.readString() == "#");
+                    patch->deselectAll();
+                    
+                    while(!istream.isExhausted())  {
+                        auto itemID = istream.readString();
+    
+                        // End of selection
+                        if(itemID == "#") break;
+                        
+                        auto* obj = patch->getObjectByID(itemID);
+                        
+                        if(!obj) continue;
+                        
+                        patch->setSelected(obj, true);
+                    }
+                }
             }
         }
         if(type == MessageHandler::tObject) {

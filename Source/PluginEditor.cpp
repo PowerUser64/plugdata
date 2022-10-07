@@ -1030,6 +1030,8 @@ bool PlugDataPluginEditor::perform(const InvocationInfo& info)
 {
     auto* cnv = getCurrentCanvas();
 
+    if(!cnv) return false;
+    
     auto lastPosition = cnv->viewport->getViewArea().getConstrainedPoint(cnv->getMouseXYRelative() - Point<int>(Object::margin, Object::margin));
 
     switch (info.commandID)

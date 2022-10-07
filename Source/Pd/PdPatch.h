@@ -56,9 +56,9 @@ public:
 
     void setZoom(int zoom);
 
-    void copy();
+    void copy(StringArray IDs);
     void paste();
-    void duplicate();
+    void duplicate(StringArray IDs);
 
     void startUndoSequence(String name);
     void endUndoSequence(String name);
