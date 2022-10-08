@@ -1,6 +1,9 @@
 #include "PureData.h"
 #include <x_libpd_multi.h>
 
+#include "../ipc/boost/interprocess/ipc/message_queue.hpp"
+#include "../ipc/boost/interprocess/sync/named_semaphore.hpp"
+
 extern "C" {
 
 #include <s_libpd_inter.h>
@@ -90,7 +93,7 @@ struct PureData::internal {
 }
 
 //==============================================================================
-PureData::PureData(String ID) : messageHandler(ID), midiOutput(deviceManager.getDefaultMidiOutput())
+PureData::PureData(String ID) : messageHandler(ID), midiOutput(deviceManager.getDefaultMidiOutput()), audioExchanger(ID, ID.contains("plugin"))
 {
     channelPointers.reserve(32);
 
@@ -107,17 +110,19 @@ PureData::PureData(String ID) : messageHandler(ID), midiOutput(deviceManager.get
     
     synchronise();
     
-    // Some platforms require permissions to open input channels so request that here
-    if(juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
-        && ! juce::RuntimePermissions::isGranted (juce::RuntimePermissions::recordAudio))
-    {
-        juce::RuntimePermissions::request (juce::RuntimePermissions::recordAudio,
-                                           [&] (bool granted) { setAudioChannels (granted ? numInputChannels : 0, numOutputChannels); });
-    }
-    else
-    {
-        // Specify the number of input and output channels that we want to open
-        setAudioChannels (numInputChannels, numOutputChannels);
+    if(!ID.contains("plugin")) {
+        // Some platforms require permissions to open input channels so request that here
+        if(juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio)
+           && ! juce::RuntimePermissions::isGranted (juce::RuntimePermissions::recordAudio))
+        {
+            juce::RuntimePermissions::request (juce::RuntimePermissions::recordAudio,
+                                               [&] (bool granted) { setAudioChannels (granted ? numInputChannels : 0, numOutputChannels); });
+        }
+        else
+        {
+            // Specify the number of input and output channels that we want to open
+            setAudioChannels (numInputChannels, numOutputChannels);
+        }
     }
     
     m_midi_receiver = libpd_multi_midi_new(this, reinterpret_cast<t_libpd_multi_noteonhook>(internal::multi_noteon), reinterpret_cast<t_libpd_multi_controlchangehook>(internal::multi_controlchange), reinterpret_cast<t_libpd_multi_programchangehook>(internal::multi_programchange),
@@ -179,12 +184,10 @@ PureData::~PureData()
 void PureData::prepareToPlay(int samplesPerBlockExpected, double sampleRate)
 {
     const auto blksize = static_cast<size_t>(libpd_blocksize());
-    const auto numIn = std::max(static_cast<size_t>(numInputChannels), static_cast<size_t>(2));
-    const auto nouts = std::max(static_cast<size_t>(numOutputChannels), static_cast<size_t>(2));
-    audioBufferIn.resize(numInputChannels * blksize);
-    audioBufferOut.resize(numOutputChannels * blksize);
-    std::fill(audioBufferOut.begin(), audioBufferOut.end(), 0.f);
-    std::fill(audioBufferIn.begin(), audioBufferIn.end(), 0.f);
+    const auto numIn = static_cast<size_t>(numInputChannels);
+    const auto nouts = static_cast<size_t>(numOutputChannels);
+    audioBufferIn.resize(numInputChannels * blksize, 0);
+    audioBufferOut.resize(numOutputChannels * blksize, 0);
 
     libpd_init_audio(numInputChannels, numOutputChannels, sampleRate);
     libpd_start_message(1); // one entry in list
@@ -529,14 +532,28 @@ void PureData::receiveMidiByte(const int port, const int byte)
 
 void PureData::waitForNextBlock()
 {
-    bool triggered = audioProcessSemaphore.wait(5);
+    bool triggered = audioExchanger.waitForInput(500);
     
     if(!triggered) {
-        processInternal(true);
-        return;
+        //processInternal(true);
+        //return;
     }
-
-    auto buffer = dsp::AudioBlock<float>(*sharedBuffer.buffer);
+    
+    dsp::AudioBlock<float> buffer;
+    AudioBuffer<float> temp_buf;
+    
+    if(audioExchanger.ipcMode) {
+        audioExchanger.receiveAudioBuffer(temp_buf);
+        buffer = dsp::AudioBlock<float>(temp_buf);
+        
+        numInputChannels = buffer.getNumChannels();
+        numOutputChannels = buffer.getNumChannels();
+        prepareToPlay(buffer.getNumSamples(), 44100.0f);
+    }
+    else {
+        buffer = audioExchanger.receiveAudioBuffer();
+    }
+    
     
     MidiBuffer midiMessages;
     midiInputCollector.removeNextBlockOfMessages(midiMessages, buffer.getNumSamples());
@@ -546,8 +563,8 @@ void PureData::waitForNextBlock()
     const int numSamples = static_cast<int>(buffer.getNumSamples());
     const int adv = audioAdvancement >= 64 ? 0 : audioAdvancement;
     const int numLeft = blockSize - adv;
-    const int numIn = 2;
-    const int numOut = 2;
+    const int numIn = numInputChannels;
+    const int numOut = numOutputChannels;
 
     channelPointers.clear();
     for(int ch = 0; ch < std::max(numIn, numOut); ch++) {
@@ -666,19 +683,33 @@ void PureData::waitForNextBlock()
             audioAdvancement = remaining;
         }
     }
-    processStatusbar(*sharedBuffer.buffer, midiBufferIn, midiBufferOut);
     
-    audioDoneSemaphore.signal();
+    processStatusbar(buffer, midiBufferIn, midiBufferOut);
+    
+    audioExchanger.sendAudioBuffer(buffer);
+    audioExchanger.notifyOutput();
 
 }
 
 void PureData::getNextAudioBlock(const juce::AudioSourceChannelInfo& bufferToFill)
 {
-    sharedBuffer = bufferToFill;
+    if(audioExchanger.ipcMode)  {
+        bufferToFill.buffer->clear();
+        return;
+    }
+    
+    audioExchanger.sendAudioBuffer(*bufferToFill.buffer);
+    audioExchanger.notifyInput();
+    audioExchanger.waitForOutput();
+    
+    if(audioExchanger.ipcMode) {
+        audioExchanger.receiveAudioBuffer(*bufferToFill.buffer);
+    }
+    else {
+        auto block = audioExchanger.receiveAudioBuffer();
+        block.copyTo(*bufferToFill.buffer);
+    }
 
-    audioProcessSemaphore.signal();
-
-    audioDoneSemaphore.wait();
 }
 
 void PureData::releaseResources()
@@ -780,6 +811,7 @@ void PureData::receiveMessages()
             {
                 numInputChannels = istream.readInt();
                 numOutputChannels = istream.readInt();
+                
                 auto state = XmlDocument(istream.readString()).getDocumentElement();
                 
                 // this is ridiculous, but it works
@@ -789,7 +821,7 @@ void PureData::receiveMessages()
                     MessageManager::getInstance()->setCurrentThreadAsMessageThread();
                     
                     setAudioChannels(numInputChannels, numOutputChannels, s);
-
+                    
                     delete s;
                     
                     for(auto& midiInput : MidiInput::getAvailableDevices()) {
@@ -851,22 +883,23 @@ static bool hasRealEvents(MidiBuffer& buffer)
     });
 }
 
-void PureData::processStatusbar(const AudioBuffer<float>& buffer, MidiBuffer& midiIn, MidiBuffer& midiOut)
+void PureData::processStatusbar(const dsp::AudioBlock<float> buffer, MidiBuffer& midiIn, MidiBuffer& midiOut)
 {
     auto level = std::vector<float>(2);
     bool midiSent = false;
     bool midiReceived = false;
     
-    auto** channelData = buffer.getArrayOfReadPointers();
 
     for (int ch = 0; ch < buffer.getNumChannels(); ch++)
     {
+        auto* channelData = buffer.getChannelPointer(ch);
+        
         // TODO: this logic for > 2 channels makes no sense!!
         auto localLevel = level[ch & 1];
 
         for (int n = 0; n < buffer.getNumSamples(); n++)
         {
-            float s = std::abs(channelData[0][n]);
+            float s = std::abs(channelData[n]);
 
             const float decayFactor = 0.99992f;
 
@@ -882,7 +915,6 @@ void PureData::processStatusbar(const AudioBuffer<float>& buffer, MidiBuffer& mi
     }
 
     auto now = Time::getCurrentTime();
-
     
     auto hasInEvents = hasRealEvents(midiIn);
     auto hasOutEvents = hasRealEvents(midiOut);

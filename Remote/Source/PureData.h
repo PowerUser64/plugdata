@@ -9,8 +9,10 @@
 
 #define PD_REMOTE 1
 
+#include "AudioExchanger.h"
 #include "MessageHandler.h"
 #include "Patch.h"
+
 
 class Atom {
 public:
@@ -169,7 +171,7 @@ public:
     void sendSysRealTime(int const port, int const byte) const;
     void sendMidiByte(int const port, int const byte) const;
     
-    void processStatusbar(const AudioBuffer<float>& buffer, MidiBuffer& midiIn, MidiBuffer& midiOut);
+    void processStatusbar(const dsp::AudioBlock<float> buffer, MidiBuffer& midiIn, MidiBuffer& midiOut);
     
     void sendPing();
     
@@ -219,9 +221,7 @@ private:
     
     OwnedArray<Patch> patches;
 
-    WaitableEvent audioProcessSemaphore;
-    WaitableEvent audioDoneSemaphore;
-    juce::AudioSourceChannelInfo sharedBuffer;
+    AudioExchanger audioExchanger;
     
     Time lastMidiIn;
     Time lastMidiOut;

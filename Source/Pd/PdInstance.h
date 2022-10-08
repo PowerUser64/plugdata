@@ -20,7 +20,7 @@ extern "C" {
 #include "concurrentqueue.h"
 #include "../Utility/FastStringWidth.h"
 
-
+#include "../../Remote/Source/AudioExchanger.h"
 #include "../../Remote/Source/MessageHandler.h"
 
 namespace pd {
@@ -264,6 +264,7 @@ public:
 
     inline static const String defaultPatch = "#N canvas 827 239 527 327 12;";
 
+    
 private:
     moodycamel::ConcurrentQueue<std::function<void(void)>> m_function_queue = moodycamel::ConcurrentQueue<std::function<void(void)>>(4096);
 
@@ -274,6 +275,8 @@ private:
 
 protected:
 
+
+    
     struct internal;
 
     struct ConsoleHandler : public Timer {
@@ -372,7 +375,12 @@ protected:
     
 public:
     
+    String instanceID;
+    
     MessageHandler messageHandler;
     ConsoleHandler consoleHandler;
+    #if !PLUGDATA_STANDALONE
+        std::unique_ptr<AudioExchanger> audioExchanger;
+    #endif
 };
 } // namespace pd

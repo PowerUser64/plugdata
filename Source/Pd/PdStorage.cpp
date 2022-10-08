@@ -26,7 +26,7 @@ Storage::Storage(t_glist* patch, Instance* inst)
     : parentPatch(patch)
     , instance(inst)
 {
-    instance->getCallbackLock()->enter();
+    //instance->getCallbackLock()->enter();
 
     /*
     for (t_gobj* y = patch->gl_list; y; y = y->g_next) {
@@ -84,7 +84,7 @@ Storage::Storage(t_glist* patch, Instance* inst)
 
     infoObject = &pd_checkobject(libpd_createobj(infoParent, gensym("text"), argc, argv.data()))->te_g;
      */
-    instance->getCallbackLock()->exit();
+    //instance->getCallbackLock()->exit();
 }
 
 // Function to load state tree from existing patch, only called on init
@@ -252,11 +252,11 @@ void Storage::createUndoAction()
 
     undoManager.beginNewTransaction();
 
-    instance->getCallbackLock()->enter();
+    //instance->getCallbackLock()->enter();
     // Create dummy undoable action that we can detect by name when calling undo
     canvas_undo_add(parentPatch, UNDO_MOTION, "plugdata_undo", canvas_undo_set_move(parentPatch, 1));
 
-    instance->getCallbackLock()->exit();
+    //instance->getCallbackLock()->exit();
 }
 
 // Checks if the provided object is the GraphOnParent container for our state (passed as t_gobj)

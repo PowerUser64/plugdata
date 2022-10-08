@@ -11,6 +11,7 @@
 #include "PluginEditor.h"
 #include "LookAndFeel.h"
 
+
 extern "C"
 {
     #include "x_libpd_extra_utils.h"
@@ -41,11 +42,17 @@ PlugDataAudioProcessor::PlugDataAudioProcessor()
     : AudioProcessor(buildBusesProperties()),
       statusbarSource(messageHandler),
 #endif
+      
       pd::Instance("PlugData"),
       parameters(*this, nullptr)
 {
     // Make sure to use dots for decimal numbers, pd requires that
     std::setlocale(LC_ALL, "C");
+    
+#if !PLUGDATA_STANDALONE
+    audioExchanger = std::make_unique<AudioExchanger>(messageHandler.ID, true);
+#endif
+    
     
     parameters.createAndAddParameter(std::make_unique<AudioParameterFloat>(ParameterID("volume", 1), "Volume", NormalisableRange<float>(0.0f, 1.0f, 0.001f, 0.75f, false), 1.0f));
 
@@ -404,6 +411,21 @@ void PlugDataAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBloc
     float oversampleFactor = 1 << oversampling;
     auto maxChannels = std::max(getTotalNumInputChannels(), getTotalNumOutputChannels());
     
+    wrappedEngine = std::make_unique<FIFOWrappedEngine<float>>(512, sampleRate);
+    
+#if !PLUGDATA_STANDALONE
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tGlobal);
+    message.writeString("AudioStatus");
+    
+    message.writeInt(getTotalNumInputChannels());
+    message.writeInt(getTotalNumOutputChannels());
+    message.writeInt(samplesPerBlock);
+    message.writeFloat(sampleRate);
+
+    messageHandler.sendMessage(message.getMemoryBlock());
+#endif
+    
     prepareDSP(getTotalNumInputChannels(), getTotalNumOutputChannels(), sampleRate * oversampleFactor, samplesPerBlock * oversampleFactor);
     
     oversampler.reset (new dsp::Oversampling<float> (maxChannels, oversampling, dsp::Oversampling<float>::filterHalfBandPolyphaseIIR, false));
@@ -473,8 +495,23 @@ bool PlugDataAudioProcessor::isBusesLayoutSupported(const BusesLayout& layouts) 
 
 void PlugDataAudioProcessor::processBlock(AudioBuffer<float>& buffer, MidiBuffer& midiMessages)
 {
+
+    // In the standalone, audio output is handled by the child process
+#if PLUGDATA_STANDALONE
     buffer.clear();
+#else
     
+    wrappedEngine->renderBlock = [this](AudioBuffer<float>& input, AudioBuffer<float>& output, MidiBuffer& midiMessages){
+        
+        audioExchanger->sendAudioBuffer(input);
+        audioExchanger->notifyInput();
+        audioExchanger->waitForOutput();
+        audioExchanger->receiveAudioBuffer(output);
+    };
+    
+    wrappedEngine->process(buffer, midiMessages);
+
+#endif
 }
 
 
@@ -572,11 +609,11 @@ void PlugDataAudioProcessor::messageEnqueued()
     else
     {
         const CriticalSection* cs = getCallbackLock();
-        if (cs->tryEnter())
-        {
-            sendMessagesFromQueue();
-            cs->exit();
-        }
+        //if (cs->tryEnter())
+        //{
+           // sendMessagesFromQueue();
+           // cs->exit();
+        //}
     }
 }
 

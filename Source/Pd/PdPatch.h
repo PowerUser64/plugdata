@@ -113,6 +113,8 @@ public:
 
         auto content = String(buf, static_cast<size_t>(bufsize));
         return content; */
+        
+        return "";
     }
 
     int getIndex(void* obj);

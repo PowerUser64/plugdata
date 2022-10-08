@@ -14,6 +14,7 @@
 #include "Statusbar.h"
 
 
+#include "../Remote/Source/FIFOWrappedEngine.h"
 
 class PlugDataLook;
 
@@ -214,5 +215,7 @@ class PlugDataAudioProcessor : public AudioProcessor, public pd::Instance, publi
     static inline const String else_version = "ELSE v1.0-rc3";
     static inline const String cyclone_version = "cyclone v0.6-1";
     
+    std::unique_ptr<FIFOWrappedEngine<float>> wrappedEngine;
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(PlugDataAudioProcessor)
 };

@@ -1,6 +1,8 @@
 #include <JuceHeader.h>
 #include "PureData.h"
 
+#ifdef PD_REMOTE
+
 int main(int argc, char *argv[]) { 
     
     //Thread::getCurrentThread()->setPriority(Thread::realtimeAudioPriority);
@@ -32,3 +34,5 @@ int main(int argc, char *argv[]) {
     MessageManager::deleteInstance();
     return 0;
 }
+
+#endif

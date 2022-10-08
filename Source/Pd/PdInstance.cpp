@@ -106,11 +106,18 @@ struct pd::Instance::internal {
 
 bool wantsNativeDialog();
 
+
+
 namespace pd {
 
 Instance::Instance(String const& symbol) :
     consoleHandler(this),
-    messageHandler(Uuid().toString())
+    messageHandler(instanceID),
+#if PLUGDATA_STANDALONE
+    instanceID(Uuid().toString())
+#else
+    instanceID(Uuid().toString() + "_plugin")
+#endif
 {
     libpd_multi_init();
     
@@ -446,23 +453,23 @@ void Instance::processSend(dmessage mess)
                 if (mess.list[i].isFloat())
                     SETFLOAT(argv + i, mess.list[i].getFloat());
                 else if (mess.list[i].isSymbol()) {
-                    sys_lock();
+                    //sys_lock();
                     SETSYMBOL(argv + i, gensym(mess.list[i].getSymbol().toRawUTF8()));
-                    sys_unlock();
+                    //sys_unlock();
                 } else
                     SETFLOAT(argv + i, 0.0);
             }
-            sys_lock();
+           // sys_lock();
             pd_list(static_cast<t_pd*>(mess.object), gensym("list"), static_cast<int>(mess.list.size()), argv);
-            sys_unlock();
+            //sys_unlock();
         } else if (mess.selector == "float" && mess.list[0].isFloat()) {
-            sys_lock();
+            //sys_lock();
             pd_float(static_cast<t_pd*>(mess.object), mess.list[0].getFloat());
-            sys_unlock();
+            //sys_unlock();
         } else if (mess.selector == "symbol") {
-            sys_lock();
+            //sys_lock();
             pd_symbol(static_cast<t_pd*>(mess.object), gensym(mess.list[0].getSymbol().toRawUTF8()));
-            sys_unlock();
+            //sys_unlock();
         }
     } else {
         sendMessage(mess.destination.toRawUTF8(), mess.selector.toRawUTF8(), mess.list);
@@ -516,9 +523,9 @@ void Instance::waitForStateUpdate()
     //  Append signal to resume thread at the end of the queue
     //  This will make sure that any actions we performed are definitely finished now
     //  If it can aquire a lock, it will dequeue all action immediately
-    enqueueFunction([this]() { updateWait.signal(); });
+    //enqueueFunction([this]() { updateWait.signal(); });
 
-    updateWait.wait();
+    //updateWait.wait();
 }
 
 void Instance::sendMessagesFromQueue()
