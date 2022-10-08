@@ -340,8 +340,6 @@ template<typename SampleType>
 class FIFOWrappedEngine
 {
     
-    using AudioBuffer = AudioBuffer<SampleType>;
-    
 public:
     FIFOWrappedEngine(int consistentInternalBlocksize, double samplerate): internalBlocksize(0)
     {
@@ -354,7 +352,7 @@ public:
     
     // these are the public functions your AudioProcessor should call directly from its processBlock, prepareToPlay, etc...
     
-    void process (AudioBuffer& input, AudioBuffer& output, MidiBuffer& midiMessages, const bool isBypassed = false)
+    void process (AudioBuffer<SampleType>& input, AudioBuffer<SampleType>& output, MidiBuffer& midiMessages, const bool isBypassed = false)
     {
         jassert (! resourcesReleased);
         jassert (isInitialized);
@@ -399,8 +397,8 @@ public:
         do {
             const auto chunkNumSamples = std::min (internalBlocksize, samplesLeft);
             
-            AudioBuffer inputProxy  (input.getArrayOfWritePointers(),  numChannels, startSample, chunkNumSamples);
-            AudioBuffer outputProxy (output.getArrayOfWritePointers(), numChannels, startSample, chunkNumSamples);
+            AudioBuffer<SampleType> inputProxy  (input.getArrayOfWritePointers(),  numChannels, startSample, chunkNumSamples);
+            AudioBuffer<SampleType> outputProxy (output.getArrayOfWritePointers(), numChannels, startSample, chunkNumSamples);
             
             // put just the midi messages for this time segment into the midiChoppingBuffer, starting at timestamp 0
             midiChoppingBuffer.clear();
@@ -421,7 +419,7 @@ public:
     }
     
     
-    void process (AudioBuffer& inplaceInAndOut, MidiBuffer& midiMessages, const bool isBypassed = false)
+    void process (AudioBuffer<SampleType>& inplaceInAndOut, MidiBuffer& midiMessages, const bool isBypassed = false)
     {
         process (inplaceInAndOut, inplaceInAndOut, midiMessages, isBypassed);
     }
@@ -531,14 +529,14 @@ public:
     double getSamplerate() const noexcept { return sampleRate; }
     
     
-    std::function<void(AudioBuffer&, AudioBuffer&, MidiBuffer&)> renderBlock = [](AudioBuffer&, AudioBuffer&, MidiBuffer&){
+    std::function<void(AudioBuffer<SampleType>&, AudioBuffer<SampleType>&, MidiBuffer&)> renderBlock = [](AudioBuffer<SampleType>&, AudioBuffer<SampleType>&, MidiBuffer&){
         
     };
     
 private:
     
     // part of the FIFO process, not for public use
-    void processWrapped (AudioBuffer& input, AudioBuffer& output, MidiBuffer& midiMessages,
+    void processWrapped (AudioBuffer<SampleType>& input, AudioBuffer<SampleType>& output, MidiBuffer& midiMessages,
                          const bool applyFadeIn, const bool applyFadeOut,
                          const bool isBypassed = false)
     {
@@ -598,7 +596,7 @@ private:
     // these virtual functions should be overriden by your subclass to implement your engine's functionality:
 
     
-    virtual void bypassedBlock (const AudioBuffer& input, MidiBuffer& midiMessages) { ignoreUnused (input, midiMessages); }
+    virtual void bypassedBlock (const AudioBuffer<SampleType>& input, MidiBuffer& midiMessages) { ignoreUnused (input, midiMessages); }
     
     virtual void initialized (int newInternalBlocksize, double samplerate) { ignoreUnused (newInternalBlocksize, samplerate); }
     
@@ -619,8 +617,8 @@ private:
     
     AudioFIFO<SampleType> inputBuffer;
     AudioFIFO<SampleType> outputBuffer;
-    AudioBuffer inBuffer;
-    AudioBuffer outBuffer;
+    AudioBuffer<SampleType> inBuffer;
+    AudioBuffer<SampleType> outBuffer;
     
     bool wasBypassedLastCallback = true;
     
