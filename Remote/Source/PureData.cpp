@@ -90,7 +90,7 @@ struct PureData::internal {
 }
 
 //==============================================================================
-PureData::PureData(String ID) : messageHandler(ID, false), midiOutput(deviceManager.getDefaultMidiOutput())
+PureData::PureData(String ID) : messageHandler(ID), midiOutput(deviceManager.getDefaultMidiOutput())
 {
     channelPointers.reserve(32);
 

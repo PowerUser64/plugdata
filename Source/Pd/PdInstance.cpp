@@ -110,7 +110,7 @@ namespace pd {
 
 Instance::Instance(String const& symbol) :
     consoleHandler(this),
-    messageHandler(Uuid().toString(), true)
+    messageHandler(Uuid().toString())
 {
     libpd_multi_init();
     

@@ -50,8 +50,6 @@ void canvas_map(t_canvas* x, t_floatarg f);
 void canvas_declare(t_canvas* x, t_symbol* s, int argc, t_atom* argv);
 }
 
-#include "MessageHandler.h"
-
 // False GATOM
 typedef struct _fake_gatom {
     t_text a_text;

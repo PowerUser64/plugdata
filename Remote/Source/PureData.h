@@ -7,6 +7,8 @@
 #include <x_libpd_extra_utils.h>
 #include <m_imp.h>
 
+#define PD_REMOTE 1
+
 #include "MessageHandler.h"
 #include "Patch.h"
 

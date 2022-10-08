@@ -230,7 +230,7 @@ add_custom_target(CreateBinaryData
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData/PdRemoteBinaryData.cpp PROPERTIES GENERATED 1)
 
 add_library(PdRemoteBinaryData STATIC ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData/PdRemoteBinaryData.cpp)
-target_include_directories(PdRemoteBinaryData INTERFACE ${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/PdRemoteBinaryData)
 add_dependencies(PdRemoteBinaryData CreateBinaryData)
 
 if(APPLE)
@@ -331,7 +331,7 @@ endif()
 
 file(GLOB PlugDataBinaryDataSources
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/PlugDataFont.ttf
-    ${CMAKE_CURRENT_SOURCE_DIR}/Resources/InterRegular.ttf
+    ${CMAKE_CURRENT_SOURCE_DIR}/Resources/InterVariable.ttf
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/plugd_logo.png
     ${CMAKE_CURRENT_SOURCE_DIR}/Resources/Filesystem.zip
     )

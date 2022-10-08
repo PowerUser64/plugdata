@@ -212,6 +212,7 @@ void Storage::setInfo(String const& id, String const& property, String const& in
 // Checks if we're at a storage undo event, and applies undo if needed
 void Storage::undoIfNeeded()
 {
+    /*
     instance->getCallbackLock()->enter();
 
     t_undo* udo = canvas_undo_get(parentPatch);
@@ -222,12 +223,13 @@ void Storage::undoIfNeeded()
 
     instance->getCallbackLock()->exit();
 
-    storeInfo();
+    storeInfo(); */
 }
 
 // Checks if we're at a storage redo event, and applies redo if needed
 void Storage::redoIfNeeded()
 {
+    /*
     instance->getCallbackLock()->enter();
 
     t_undo* udo = canvas_undo_get(parentPatch);
@@ -238,7 +240,7 @@ void Storage::redoIfNeeded()
 
     instance->getCallbackLock()->exit();
 
-    storeInfo();
+    storeInfo(); */
 }
 
 // Creates a dummy undoable action in pd and begins a new transaction in out own undo manager

@@ -228,6 +228,7 @@ void PlugDataPluginEditor::paint(Graphics& g)
 {
     auto baseColour = findColour(PlugDataColour::toolbarColourId);
 
+
 #if PLUGDATA_ROUNDED
     // Toolbar background
     g.setColour(baseColour);
@@ -275,6 +276,16 @@ void PlugDataPluginEditor::paintOverChildren(Graphics& g)
     g.drawLine(0.0f, getHeight() - statusbar.getHeight(), static_cast<float>(getWidth()), getHeight() - statusbar.getHeight());
     
     g.restoreState();
+    
+    if(canvases.isEmpty()) {
+        auto styles = Font(32).getAvailableStyles();
+        g.setFont(Font(32).withTypefaceStyle("Thin"));
+        g.drawText("No Patch Open", 0, 150, tabbar.getWidth(), 40, Justification::centred);
+        
+        g.setFont(Font(23).withTypefaceStyle("Thin"));
+        g.drawText("Open a patch to begin", 0, 190, tabbar.getWidth(), 40, Justification::centred);
+    }
+    
 }
 
 void PlugDataPluginEditor::resized()
