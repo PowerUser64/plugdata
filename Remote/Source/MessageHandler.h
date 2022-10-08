@@ -56,6 +56,7 @@ public:
         void startPinging()
         {
             pingReceived();
+            receivedAnyPing = false;
             startThread (4);
         }
         
@@ -63,6 +64,7 @@ public:
         {
             countdown = timeoutMs / 1000 + 1;
             receivedAnyPing = true;
+            //std::cout << "Ping received" << std::endl;
         }
         
         void triggerConnectionLostMessage()
@@ -75,14 +77,21 @@ public:
             message.writeInt(MessageHandler::tGlobal);
             message.writeString("Ping");
             messageHandler.sendMessage(message.getMemoryBlock());
+            
+            //std::cout << "Ping sent" << std::endl;
         }
         
         void pingFailed() {
-            if(!receivedAnyPing) return;
+            
+            if(!receivedAnyPing)  {
+               // std::cout << "Waiting for child..." << std::endl;
+                return;
+            }
             
             messageHandler.initialise();
             pingReceived();
             receivedAnyPing = false;
+            //std::cout << "Ping failed" << std::endl;
         }
         
         int timeoutMs;
@@ -105,7 +114,6 @@ public:
                 if (--countdown <= 0)
                 {
                     triggerConnectionLostMessage();
-                    break;
                 }
                 
                 wait (1000);
