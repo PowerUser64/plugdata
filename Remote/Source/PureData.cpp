@@ -106,8 +106,6 @@ PureData::PureData(String ID) : messageHandler(ID), midiOutput(deviceManager.get
     libpd_multi_init();
     libpd_set_verbose(0);
     
-    //patches.add(new Patch(messageHandler, libpd_openfile("instantosc.pd", "/Users/timschoen")));
-    
     synchronise();
     
     if(!ID.contains("plugin")) {
@@ -358,10 +356,22 @@ void PureData::removeObject(String canvasID, String initialiser) {
 
 void PureData::synchronise() {
     
+    MemoryOutputStream message;
+    message.writeInt(MessageHandler::tGlobal);
+    message.writeString("Sync");
+    message.writeString("#");
+    for(auto* patch : patches) {
+        message.writeString(patch->getID());
+    }
+    message.writeString("#");
+    
+    messageHandler.sendMessage(message.getMemoryBlock());
+    
     for(auto* patch : patches) {
         patch->synchronise();
     }
 }
+
 
 void PureData::processPrint(const char* s)
 {
@@ -870,7 +880,7 @@ void PureData::receiveMessages()
         }
     }
     
-    if(connectionEstablished &&  (Time::getCurrentTime().getMillisecondCounter() - lastPingMs) > 8000) {
+    if(connectionEstablished &&  (Time::getCurrentTime().getMillisecondCounter() - lastPingMs) > 1000) {
         connectionLost = true;
     }
 }

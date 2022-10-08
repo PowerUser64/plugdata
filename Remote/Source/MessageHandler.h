@@ -44,7 +44,7 @@ public:
     {
         MessageHandler& messageHandler;
         
-        Ping(MessageHandler& m, int timeout = 5000)  : Thread ("IPC ping"), messageHandler(m), timeoutMs (timeout)
+        Ping(MessageHandler& m, int timeout = 1000)  : Thread ("IPC ping"), messageHandler(m), timeoutMs (timeout)
         {
             
         }
@@ -62,6 +62,7 @@ public:
         void pingReceived() noexcept
         {
             countdown = timeoutMs / 1000 + 1;
+            receivedAnyPing = true;
         }
         
         void triggerConnectionLostMessage()
@@ -77,11 +78,16 @@ public:
         }
         
         void pingFailed() {
+            if(!receivedAnyPing) return;
+            
             messageHandler.initialise();
             pingReceived();
+            receivedAnyPing = false;
         }
         
         int timeoutMs;
+        
+        bool receivedAnyPing = false;
         
         using AsyncUpdater::cancelPendingUpdate;
         

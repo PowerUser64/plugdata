@@ -1075,6 +1075,37 @@ void PlugDataAudioProcessor::timerCallback()
             if(selector == "Ping") {
                 messageHandler.ping.pingReceived();
             }
+            if(selector == "Sync") {
+                
+                StringArray canvasIDs;
+                
+                jassert(istream.readString() == "#");
+                
+                while(!istream.isExhausted())  {
+                    auto itemID = istream.readString();
+
+                    // End of selection
+                    if(itemID == "#") break;
+    
+                    canvasIDs.add(itemID);
+                }
+                
+                if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))
+                {
+                    
+                    for(int i = 0; i < editor->canvases.size(); i++) {
+                        
+                        // Close canvases that are no longer open
+                        if(!canvasIDs.contains(editor->canvases[i]->getComponentID())) {
+                            
+                            auto* closeButton = dynamic_cast<TextButton*>(editor->tabbar.getTabbedButtonBar().getTabButton(i)->getExtraComponent());
+                            
+                            closeButton->triggerClick();
+                        }
+                    }
+                }
+                
+            }
             if(selector == "DSP") {
                 auto dsp = istream.readBool();
                 if (auto* editor = dynamic_cast<PlugDataPluginEditor*>(getActiveEditor()))

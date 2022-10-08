@@ -140,7 +140,7 @@ public:
     Patch* getPatchByID(String ID);
     
     void synchronise();
-
+    
     void shutdownAudio();
     void setAudioChannels(int numInputChannels, int numOutputChannels, const XmlElement* const xml = nullptr);
     
