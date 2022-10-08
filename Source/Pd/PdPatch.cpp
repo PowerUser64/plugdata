@@ -79,8 +79,9 @@ Rectangle<int> Patch::getBounds() const
 
             return { cnv->gl_xmargin, cnv->gl_ymargin, cnv->gl_pixwidth, cnv->gl_pixheight };
         }
-    }
-    return { 0, 0, 0, 0 }; */
+    }*/
+    
+    return { 0, 0, 0, 0 };
 }
 
 void Patch::close()
@@ -95,6 +96,7 @@ void Patch::close()
 bool Patch::isDirty() const
 {
     //return getPointer()->gl_dirty;
+    return false;
 }
 
 void Patch::savePatch(File const& location)
@@ -180,6 +182,8 @@ int Patch::getIndex(void* obj)
 
     return -1;
      */
+    
+    return 0;
 }
 
 Connections Patch::getConnections() const
@@ -205,6 +209,8 @@ Connections Patch::getConnections() const
     // instance->getCallbackLock()->exit();
 
     return connections; */
+    
+    return {};
 }
 
 std::vector<void*> Patch::getObjects(bool onlyGui)
@@ -224,8 +230,8 @@ std::vector<void*> Patch::getObjects(bool onlyGui)
         }
 
         return objects;
-    }
-    return {}; */
+    } */
+    return {};
 }
 
 void* Patch::createGraphOnParent(int x, int y)
@@ -248,6 +254,8 @@ void* Patch::createGraphOnParent(int x, int y)
     assert(pdobject);
 
     return pdobject; */
+    
+    return nullptr;
 }
 
 void* Patch::createGraph(String const& name, int size, int x, int y)
@@ -270,6 +278,8 @@ void* Patch::createGraph(String const& name, int size, int x, int y)
     assert(pdobject);
 
     return pdobject; */
+    
+    return nullptr;
 }
 
 void Patch::createObject(String const& name, int x, int y)
@@ -490,6 +500,8 @@ bool Patch::createConnection(String srcID, int nout, String sinkID, int nin)
     message.writeString(sinkID);
 
     instance->messageHandler.sendMessage(message.getMemoryBlock());
+    
+    return true;
 }
 
 void Patch::removeConnection(String srcID, int nout, String sinkID, int nin)
