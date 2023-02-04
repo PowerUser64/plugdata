@@ -36,6 +36,7 @@ public:
         setMinimumHorizontalScale(1.f);
         setEditable(false, false);
         setInterceptsMouseClicks(false, false);
+        setAlwaysOnTop(true);
     }
 
     virtual ~ObjectLabel()

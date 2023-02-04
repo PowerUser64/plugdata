@@ -36,7 +36,7 @@ Iolet::Iolet(Object* parent, bool inlet)
 Rectangle<int> Iolet::getCanvasBounds()
 {
     // Get bounds relative to canvas, used for positioning connections
-    return getBounds() + object->getPosition();
+    return object->cnv->getLocalArea(object, getBounds());
 }
 
 bool Iolet::hitTest(int x, int y)

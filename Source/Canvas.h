@@ -82,7 +82,8 @@ public:
     void objectMouseDown(Object* component, MouseEvent const& e);
     void objectMouseUp(Object* component, MouseEvent const& e);
     void objectMouseDrag(MouseEvent const& e);
-
+    void checkMouseDragPositions();
+        
     SelectedItemSet<WeakReference<Component>>& getLassoSelection() override;
 
     void removeSelectedComponent(Component* component);
@@ -179,6 +180,94 @@ private:
         { "Hide name and arguments", tBool, cGeneral, &hideNameAndArgs, { "No", "Yes" } },
         { "X range", tRange, cGeneral, &xRange, {} },
         { "Y range", tRange, cGeneral, &yRange, {} } };
+        
+        
+    struct DragContainer : public Component
+    {
+        DragContainer(Component* p) : parent(p) {
+            setBufferedToImage(true);
+        }
+        
+        void drag(Point<int> dragDistance)
+        {
+            setTopLeftPosition(mouseDownPosition + dragDistance);
+        }
+        
+        void beginDrag(Array<Component*> componentsToDrag, Array<Component*> all)
+        {
+            // Just to be sure
+            allComponents = all;
+            draggedComponents = componentsToDrag;
+            
+            Rectangle<int> totalBounds;
+            for(auto* component : draggedComponents)
+            {
+                parent->removeChildComponent(component);
+                addAndMakeVisible(component);
+                totalBounds = totalBounds.getUnion(component->getBounds());
+            }
+            
+            setBounds(totalBounds);
+            
+            for(auto* component : draggedComponents)
+            {
+                component->setTopLeftPosition(component->getPosition() - totalBounds.getPosition());
+            }
+            
+            mouseDownPosition = totalBounds.getPosition();
+            
+            parent->addAndMakeVisible(this);
+            toFront(false);
+        }
+        
+
+        void endDrag()
+        {
+            for(auto* component : draggedComponents)
+            {                
+                component->setTopLeftPosition(parent->getLocalPoint(this, component->getPosition()));
+                removeChildComponent(component);
+                parent->addAndMakeVisible(component);
+            }
+            
+            // Restore original component order
+            Component* last = nullptr;
+            for(int i = allComponents.size() - 1; i >= 0; i--) {
+                if(!last) {
+                    allComponents[i]->toFront(false);
+                }
+                else {
+                    allComponents[i]->toBehind(last);
+                }
+                last = allComponents[i];
+            }
+            
+            parent->removeChildComponent(this);
+        }
+        
+        Array<Component*> getDraggedComponents() {
+            return draggedComponents;
+        }
+        
+        bool onlyOneSelected(Component* first, Component* second)
+        {
+            return draggedComponents.contains(first) ^ draggedComponents.contains(second);
+        }
+        
+        bool eitherOneSelected(Component* first, Component* second)
+        {
+            return draggedComponents.contains(first) || draggedComponents.contains(second);
+        }
+           
+        private:
+            Component* parent;
+            Array<Component*> draggedComponents;
+            Array<Component*> allComponents;
+            Point<int> mouseDownPosition;
+        };
+        
+    DragContainer dragContainer;
+        
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(Canvas)
 };

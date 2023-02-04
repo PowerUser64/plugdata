@@ -513,7 +513,8 @@ public:
                 label = std::make_unique<ObjectLabel>(object);
             }
 
-            auto bounds = object->getBounds().reduced(Object::margin).removeFromTop(fontHeight + 2);
+            auto cnvArea = cnv->getLocalArea(object->getParentComponent(), object->getBounds());
+            auto bounds = cnvArea.reduced(Object::margin).removeFromTop(fontHeight + 2);
 
             bounds.translate(2, -(fontHeight + 2));
 

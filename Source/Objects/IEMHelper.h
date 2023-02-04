@@ -275,7 +275,7 @@ public:
             label->setFont(Font(fontHeight));
             label->setBounds(bounds);
             label->setText(text, dontSendNotification);
-
+            
             label->setColour(Label::textColourId, getLabelColour());
 
             object->cnv->addAndMakeVisible(label.get());
@@ -286,7 +286,8 @@ public:
 
     Rectangle<int> getLabelBounds() const
     {
-        auto objectBounds = object->getBounds().reduced(Object::margin);
+        auto cnvArea = cnv->getLocalArea(object->getParentComponent(), object->getBounds());
+        auto objectBounds = cnvArea.reduced(Object::margin);
 
         t_symbol const* sym = canvas_realizedollar(iemgui->x_glist, iemgui->x_lab);
         if (sym) {

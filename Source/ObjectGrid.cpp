@@ -10,7 +10,7 @@
 #include "Canvas.h"
 #include "LookAndFeel.h"
 
-ObjectGrid::ObjectGrid(Canvas* parent)
+ObjectGrid::ObjectGrid(Canvas* parent) : cnv(parent)
 {
     for (auto& line : gridLines) {
         parent->addAndMakeVisible(line);
@@ -49,9 +49,9 @@ void ObjectGrid::updateMarker()
     Path toDraw;
 
     if (snapped[1] && orientation[1] == SnappedConnection && start[1] && end[1]) {
-
-        auto b1 = start[1]->getParentComponent()->getBounds();
-        auto b2 = end[1]->getParentComponent()->getBounds();
+        
+        auto b1 = cnv->getLocalArea(start[1]->getParentComponent()->getParentComponent(), start[1]->getParentComponent()->getBounds());
+        auto b2 = cnv->getLocalArea(end[1]->getParentComponent()->getParentComponent(), end[1]->getParentComponent()->getBounds());
 
         b1.translate(start[1]->getX() - 2, 0);
         b2.translate(end[1]->getX() - 2, 0);
@@ -65,8 +65,8 @@ void ObjectGrid::updateMarker()
         if (!start[i] || !end[i] || !snapped[i])
             continue;
 
-        auto b1 = start[i]->getBounds().reduced(Object::margin);
-        auto b2 = end[i]->getBounds().reduced(Object::margin);
+        auto b1 = cnv->getLocalArea(start[i]->getParentComponent(), start[i]->getBounds()).reduced(Object::margin);
+        auto b2 = cnv->getLocalArea(end[i]->getParentComponent(), end[i]->getBounds()).reduced(Object::margin);
 
         auto t = b1.getY() < b2.getY() ? b1 : b2;
         auto b = b1.getY() > b2.getY() ? b1 : b2;
@@ -133,6 +133,7 @@ Point<int> ObjectGrid::handleMouseDrag(Object* toDrag, Point<int> dragOffset, Re
 Point<int> ObjectGrid::performVerticalSnap(Object* toDrag, Point<int> dragOffset, Rectangle<int> viewBounds)
 {
     auto* cnv = toDrag->cnv;
+    auto realBounds = cnv->getLocalArea(toDrag->getParentComponent(), toDrag->getBounds());
 
     if (snapped[0]) {
         if (std::abs(position[0].y - dragOffset.y) > range) {
@@ -144,14 +145,16 @@ Point<int> ObjectGrid::performVerticalSnap(Object* toDrag, Point<int> dragOffset
     }
 
     for (auto* object : cnv->objects) {
+        auto realObjectBounds = cnv->getLocalArea(object->getParentComponent(), object->getBounds());
+        
         if (cnv->isSelected(object))
             continue; // don't look at selected objects
 
         if (!viewBounds.intersects(object->getBounds()))
             continue; // if the object is out of viewport bounds
 
-        auto b1 = object->getBounds().reduced(Object::margin);
-        auto b2 = toDrag->getBounds().withPosition(toDrag->mouseDownPos + dragOffset).reduced(Object::margin);
+        auto b1 = realObjectBounds.reduced(Object::margin);
+        auto b2 = realBounds.withPosition(toDrag->mouseDownPos + dragOffset).reduced(Object::margin);
 
         start[0] = object;
         end[0] = toDrag;
@@ -177,6 +180,7 @@ Point<int> ObjectGrid::performHorizontalSnap(Object* toDrag, Point<int> dragOffs
 {
 
     auto* cnv = toDrag->cnv;
+    auto realBounds = cnv->getLocalArea(toDrag->getParentComponent(), toDrag->getBounds());
 
     // Check if already snapped
     if (snapped[1]) {
@@ -197,7 +201,7 @@ Point<int> ObjectGrid::performHorizontalSnap(Object* toDrag, Point<int> dragOffs
         if (inletBounds.getY() < outletBounds.getY())
             continue;
 
-        auto recentDragOffset = (toDrag->mouseDownPos + dragOffset) - toDrag->getPosition();
+        auto recentDragOffset = (toDrag->mouseDownPos + dragOffset) - realBounds.getPosition();
         if (connection->inobj == toDrag) {
             // Skip if both objects are selected
             if (cnv->isSelected(connection->outobj))
@@ -227,14 +231,17 @@ Point<int> ObjectGrid::performHorizontalSnap(Object* toDrag, Point<int> dragOffs
     }
 
     for (auto* object : cnv->objects) {
+        
+        auto realObjectBounds = cnv->getLocalArea(object->getParentComponent(), object->getBounds());
+        
         if (cnv->isSelected(object))
             continue; // don't look at selected objects
 
         if (!viewBounds.intersects(object->getBounds()))
             continue; // if the object is out of viewport bounds
 
-        auto b1 = object->getBounds().reduced(Object::margin);
-        auto b2 = toDrag->getBounds().withPosition(toDrag->mouseDownPos + dragOffset).reduced(Object::margin);
+        auto b1 = realObjectBounds.reduced(Object::margin);
+        auto b2 = realBounds.withPosition(toDrag->mouseDownPos + dragOffset).reduced(Object::margin);
 
         start[1] = object;
         end[1] = toDrag;

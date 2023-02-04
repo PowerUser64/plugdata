@@ -224,7 +224,8 @@ public:
 
     Rectangle<int> getLabelBounds() const
     {
-        auto objectBounds = object->getBounds().reduced(Object::margin);
+        auto cnvArea = cnv->getLocalArea(object->getParentComponent(), object->getBounds());
+        auto objectBounds = cnvArea.reduced(Object::margin);
         int fontHeight = getAtomHeight() - 6;
 
         int labelLength = Font(fontHeight).getStringWidth(getExpandedLabelText());

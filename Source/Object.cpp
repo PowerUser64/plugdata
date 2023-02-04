@@ -71,7 +71,7 @@ Object::~Object()
 
 Rectangle<int> Object::getObjectBounds()
 {
-    return getBounds().reduced(margin) - cnv->canvasOrigin;
+    return cnv->getLocalArea(getParentComponent(), getBounds()).reduced(margin) - cnv->canvasOrigin;
 }
 
 void Object::setObjectBounds(Rectangle<int> bounds)

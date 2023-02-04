@@ -479,12 +479,12 @@ void Connection::reconnect(Iolet* target, bool dragged)
 
 void Connection::componentMovedOrResized(Component& component, bool wasMoved, bool wasResized)
 {
-    if (!inlet || !outlet)
+    if (!inlet || !outlet || getParentComponent() != cnv)
         return;
 
     auto pstart = getStartPoint();
     auto pend = getEndPoint();
-
+    
     if (currentPlan.size() <= 2) {
         updatePath();
         return;
@@ -612,7 +612,8 @@ void Connection::updatePath()
     repaint();
 
     auto bounds = toDraw.getBounds().expanded(8);
-    setBounds((bounds + origin).getSmallestIntegerContainer());
+    auto area = getParentComponent()->getLocalArea(cnv, (bounds + origin).getSmallestIntegerContainer());
+    setBounds(area);
 
     if (bounds.getX() < 0 || bounds.getY() < 0) {
         toDraw.applyTransform(AffineTransform::translation(-bounds.getX() + 0.5f, -bounds.getY()));

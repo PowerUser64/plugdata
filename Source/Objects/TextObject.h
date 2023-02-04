@@ -178,6 +178,8 @@ public:
 
     void paint(Graphics& g) override
     {
+        std::cout << "PAINT!" << std::endl;
+        
         auto backgroundColour = object->findColour(PlugDataColour::textObjectBackgroundColourId);
         g.setColour(backgroundColour);
         g.fillRoundedRectangle(getLocalBounds().toFloat().reduced(0.5f), PlugDataLook::objectCornerRadius);

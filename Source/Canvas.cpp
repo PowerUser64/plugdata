@@ -20,11 +20,13 @@ extern "C" {
 #include "Utility/GraphArea.h"
 #include "Utility/RateReducer.h"
 
+
 Canvas::Canvas(PluginEditor* parent, pd::Patch& p, Component* parentGraph)
     : editor(parent)
     , pd(parent->pd)
     , patch(p)
     , pathUpdater(new ConnectionPathUpdater(this))
+    , dragContainer(this)
 {
     isGraphChild = glist_isgraph(p.getPointer());
     hideNameAndArgs = static_cast<bool>(p.getPointer()->gl_hidetext);
@@ -1079,15 +1081,34 @@ void Canvas::objectMouseDown(Object* component, MouseEvent const& e)
     if (auto* object = dynamic_cast<Object*>(component)) {
         componentBeingDragged = object;
     }
-
+    
     for (auto* object : getSelectionOfType<Object>()) {
         object->mouseDownPos = object->getPosition();
-        object->setBufferedToImage(true);
     }
+    
+    Array<Component*> draggedComponents;
+    auto selectedObjects = getSelectionOfType<Object>();
+    for(auto* object : selectedObjects)
+     {
+         draggedComponents.add(object);
+     }
+     
+     for(auto* c : connections)
+     {
+         if(selectedObjects.contains(c->inobj.getComponent()) && selectedObjects.contains(c->outobj.getComponent()))
+         {
+             draggedComponents.add(c);
+         }
+     }
+    
+    dragContainer.beginDrag(draggedComponents, getChildren());
+    
+    checkMouseDragPositions();
 
     if (component) {
         component->repaint();
     }
+
 
     canvasDragStartPosition = getPosition();
 
@@ -1110,6 +1131,10 @@ void Canvas::objectMouseUp(Object* component, MouseEvent const& e)
 
         setSelected(component, true);
     }
+    
+    
+    dragContainer.endDrag();
+    checkMouseDragPositions();
 
     updateSidebarSelection();
 
@@ -1120,7 +1145,7 @@ void Canvas::objectMouseUp(Object* component, MouseEvent const& e)
             if (object->getPointer())
                 objects.push_back(object->getPointer());
         }
-
+        
         auto distance = Point<int>(e.getDistanceFromDragStartX(), e.getDistanceFromDragStartY());
 
         // In case we dragged near the iolet and the canvas moved
@@ -1167,10 +1192,6 @@ void Canvas::objectMouseUp(Object* component, MouseEvent const& e)
         patch.endUndoSequence("Duplicate");
     }
 
-    for (auto* object : getSelectionOfType<Object>()) {
-        object->setBufferedToImage(false);
-        object->repaint();
-    }
 
     componentBeingDragged = nullptr;
 
@@ -1190,6 +1211,7 @@ void Canvas::objectMouseDrag(MouseEvent const& e)
 
     auto selection = getSelectionOfType<Object>();
 
+    
     auto dragDistance = e.getOffsetFromDragStart();
 
     // In case we dragged near the edge and the canvas moved
@@ -1230,14 +1252,17 @@ void Canvas::objectMouseDrag(MouseEvent const& e)
             dragDistance = Point<int>(e.getOffsetFromDragStart().x + 10, e.getOffsetFromDragStart().y + 10);
             // Move duplicated objects according to the origin position
             for (auto object : selection) {
-                object->setTopLeftPosition(mouseDownObjectPositions[object] + dragDistance + canvasMoveOffset);
+                dragContainer.drag(dragDistance + canvasMoveOffset);
+                //object->setTopLeftPosition(mouseDownObjectPositions[object] + dragDistance + canvasMoveOffset);
             }
         } else {
-
             for (auto* object : selection) {
-                object->setTopLeftPosition(object->mouseDownPos + dragDistance + canvasMoveOffset);
+                dragContainer.drag(dragDistance + canvasMoveOffset);
+                //object->setTopLeftPosition(object->mouseDownPos + dragDistance + canvasMoveOffset);
             }
         }
+        
+        checkMouseDragPositions();
     }
 
     // This handles the "unsnap" action when you shift-drag a connected object
@@ -1336,6 +1361,25 @@ void Canvas::objectMouseDrag(MouseEvent const& e)
             }
         }
     }
+}
+
+void Canvas::checkMouseDragPositions()
+{
+    // Ensure connections adjust to the new positions of objects
+    for(auto* c : connections) {
+        if(dragContainer.eitherOneSelected(c->inobj.getComponent(), c->outobj.getComponent()))
+        {
+            c->componentMovedOrResized(dragContainer, true, false);
+        }
+    }
+    
+    // Make sure labels also get moved
+    for(auto* object : objects) {
+        if(object->gui){
+            object->gui->updateLabel();
+        }
+    }
+
 }
 
 SelectedItemSet<WeakReference<Component>>& Canvas::getLassoSelection()

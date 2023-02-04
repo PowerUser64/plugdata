@@ -54,6 +54,8 @@ private:
     Component::SafePointer<Component> start[2];
     Component::SafePointer<Component> end[2];
     DrawablePath gridLines[2];
+    
+    Canvas* cnv;
 
     int totalSnaps = 0;
 
