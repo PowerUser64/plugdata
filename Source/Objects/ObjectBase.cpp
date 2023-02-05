@@ -74,7 +74,6 @@ public:
 
 void ObjectLabel::ObjectListener::componentMovedOrResized(Component& component, bool moved, bool resized)
 {
-
     dynamic_cast<Object&>(component).gui->updateLabel();
 }
 

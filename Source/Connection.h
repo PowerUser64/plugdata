@@ -182,11 +182,6 @@ public:
         iolet->repaint();
     }
 
-    void mouseUp(MouseEvent const& e) override
-    {
-        rateReducer.stop();
-    }
-
     void paint(Graphics& g) override
     {
         if (!iolet) {
@@ -201,7 +196,7 @@ public:
         return iolet;
     }
 
-    RateReducer rateReducer = RateReducer(90);
+    RateReducer rateReducer;
 };
 
 // Helper class to group connection path changes together into undoable/redoable actions

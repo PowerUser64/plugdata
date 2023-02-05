@@ -172,8 +172,8 @@ private:
 
     LassoComponent<WeakReference<Component>> lasso;
 
-    RateReducer canvasRateReducer = RateReducer(90);
-    RateReducer objectRateReducer = RateReducer(90);
+    RateReducer canvasRateReducer;
+    RateReducer objectRateReducer;
 
     // Properties that can be shown in the inspector by right-clicking on canvas
     ObjectParameters parameters = { { "Is graph", tBool, cGeneral, &isGraphChild, { "No", "Yes" } },
@@ -190,6 +190,19 @@ private:
         
         void drag(Point<int> dragDistance)
         {
+            if(!isDragging && !dragDistance.isOrigin()) {
+                for(auto* component : draggedComponents)
+                {
+                    component->setTopLeftPosition(component->getPosition() - mouseDownPosition);
+                    parent->removeChildComponent(component);
+                    addAndMakeVisible(component);
+                }
+                toFront(false);
+                parent->addAndMakeVisible(this);
+                isDragging = true;
+            }
+            
+            
             setTopLeftPosition(mouseDownPosition + dragDistance);
         }
         
@@ -202,27 +215,19 @@ private:
             Rectangle<int> totalBounds;
             for(auto* component : draggedComponents)
             {
-                parent->removeChildComponent(component);
-                addAndMakeVisible(component);
                 totalBounds = totalBounds.getUnion(component->getBounds());
             }
             
             setBounds(totalBounds);
             
-            for(auto* component : draggedComponents)
-            {
-                component->setTopLeftPosition(component->getPosition() - totalBounds.getPosition());
-            }
-            
             mouseDownPosition = totalBounds.getPosition();
-            
-            parent->addAndMakeVisible(this);
-            toFront(false);
         }
         
 
         void endDrag()
         {
+            if(!isDragging) return;
+            
             for(auto* component : draggedComponents)
             {                
                 component->setTopLeftPosition(parent->getLocalPoint(this, component->getPosition()));
@@ -243,6 +248,14 @@ private:
             }
             
             parent->removeChildComponent(this);
+            isDragging = false;
+        }
+        
+        // This should never happen, but just to be sure
+        // Better to call endDrag twice than not calling it at all, since it checks if its dragging anyway
+        void mouseUp(const MouseEvent& e)
+        {
+            endDrag();
         }
         
         Array<Component*> getDraggedComponents() {
@@ -260,6 +273,7 @@ private:
         }
            
         private:
+            bool isDragging = false;
             Component* parent;
             Array<Component*> draggedComponents;
             Array<Component*> allComponents;

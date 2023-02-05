@@ -147,7 +147,7 @@ Point<int> ObjectGrid::performVerticalSnap(Object* toDrag, Point<int> dragOffset
     for (auto* object : cnv->objects) {
         auto realObjectBounds = cnv->getLocalArea(object->getParentComponent(), object->getBounds());
         
-        if (cnv->isSelected(object))
+        if (cnv->isSelected (object))
             continue; // don't look at selected objects
 
         if (!viewBounds.intersects(object->getBounds()))

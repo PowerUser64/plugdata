@@ -388,8 +388,6 @@ void Canvas::mouseDrag(MouseEvent const& e)
 
 void Canvas::mouseUp(MouseEvent const& e)
 {
-    canvasRateReducer.stop();
-
     setMouseCursor(MouseCursor::NormalCursor);
     editor->updateCommandStatus();
 
@@ -1118,8 +1116,6 @@ void Canvas::objectMouseDown(Object* component, MouseEvent const& e)
 // Call from component's mouseUp
 void Canvas::objectMouseUp(Object* component, MouseEvent const& e)
 {
-    objectRateReducer.stop();
-
     if (e.mods.isShiftDown() && wasSelectedOnMouseDown && !didStartDragging) {
         // Unselect object if selected
         setSelected(component, false);
@@ -1131,7 +1127,6 @@ void Canvas::objectMouseUp(Object* component, MouseEvent const& e)
 
         setSelected(component, true);
     }
-    
     
     dragContainer.endDrag();
     checkMouseDragPositions();
@@ -1367,7 +1362,8 @@ void Canvas::checkMouseDragPositions()
 {
     // Ensure connections adjust to the new positions of objects
     for(auto* c : connections) {
-        if(dragContainer.eitherOneSelected(c->inobj.getComponent(), c->outobj.getComponent()))
+        
+        if(dragContainer.onlyOneSelected(c->inobj.getComponent(), c->outobj.getComponent()))
         {
             c->componentMovedOrResized(dragContainer, true, false);
         }
