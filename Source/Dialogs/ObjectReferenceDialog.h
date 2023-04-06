@@ -11,8 +11,6 @@ public:
     ObjectReferenceDialog(PluginEditor* editor, bool showBackButton)
         : library(*editor->pd->objectLibrary)
     {
-        // We only need to respond to explicit repaints anyway!
-        setBufferedToImage(true);
 
         if (showBackButton) {
             addAndMakeVisible(backButton);

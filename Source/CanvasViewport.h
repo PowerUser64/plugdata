@@ -164,14 +164,16 @@ class CanvasViewport : public Viewport
 
         void prepareImage()
         {
+            repaint(); // don't use images for nanovg version
+        }
+
+        void paint(Graphics& g) override
+        {
             auto currentRange = getCurrentRange();
             auto totalRange = getRangeLimit();
 
             if (getWidth() <= 0 || getHeight() <= 0 || totalRange.isEmpty() || currentRange.isEmpty())
                 return;
-
-            scrollbarImage = Image(Image::ARGB, getWidth(), getHeight(), true);
-            Graphics g(scrollbarImage);
 
             int margin = isInfinite ? (infiniteCanvasMargin - 2) : 0;
 
@@ -188,13 +190,6 @@ class CanvasViewport : public Viewport
             auto c = findColour(ScrollBar::ColourIds::thumbColourId);
             g.setColour(isMouseOver() ? c.brighter(0.25f) : c);
             g.fillRoundedRectangle(thumbBounds.reduced(1).toFloat(), 4.0f);
-        }
-
-        void paint(Graphics& g) override
-        {
-            if (scrollbarImage.isValid()) {
-                g.drawImageAt(scrollbarImage, 0, 0);
-            }
         }
 
         void fadeOut()
@@ -257,8 +252,6 @@ class CanvasViewport : public Viewport
         int lastMousePos = 0;
         FadeAnimator animator = FadeAnimator(this);
         FadeTimer fadeTimer;
-
-        Image scrollbarImage;
 
         bool isInfinite;
         bool isAlreadyScrolling = false;

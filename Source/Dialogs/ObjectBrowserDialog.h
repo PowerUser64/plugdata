@@ -170,9 +170,6 @@ public:
             button->setColour(TextButton::buttonColourId, findColour(PlugDataColour::panelBackgroundColourId));
             button->setColour(TextButton::buttonOnColourId, findColour(PlugDataColour::panelActiveBackgroundColourId));
         }
-
-        // We only need to respond to explicit repaints anyway!
-        setBufferedToImage(true);
     }
 
     void resized() override

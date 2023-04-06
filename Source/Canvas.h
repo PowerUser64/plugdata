@@ -14,6 +14,8 @@
 #include "Pd/Patch.h"
 #include "Constants.h"
 
+#define NANOVG_METAL_IMPLEMENTATION 1
+
 namespace pd {
 class Patch;
 }

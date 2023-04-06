@@ -26,12 +26,15 @@
 
 #include <juce_audio_plugin_client/juce_audio_plugin_client.h>
 #include <juce_audio_utils/juce_audio_utils.h>
+#include <BinaryData.h>
 
 #include "Constants.h"
 #include "Utility/StackShadow.h"
 #include "Utility/OSUtils.h"
 #include "Utility/SettingsFile.h"
 #include "Utility/RateReducer.h"
+
+#include "../Libraries/juce_nanovg/Source/NanoVGComponent.h"
 
 // For each OS, we have a different approach to rendering the window shadow
 // macOS:
@@ -696,7 +699,7 @@ public:
     std::unique_ptr<StandalonePluginHolder> pluginHolder;
 
 private:
-    class MainContentComponent : public Component
+    class MainContentComponent : public NanoVGComponent
         , private ComponentListener
         , public MenuBarModel {
 
@@ -725,6 +728,17 @@ private:
                 editor->setAlwaysOnTop(true);
             }
         }
+            
+        void contextCreated(NVGcontext*) override
+        {
+            
+            addFont("Inter", BinaryData::IBMPlexMono_ttf, BinaryData::IBMPlexMono_ttfSize);
+            addFont("Inter-Regular", BinaryData::InterThin_ttf, BinaryData::InterThin_ttfSize);
+            addFont("Untitled1-Regular", BinaryData::InterThin_ttf, BinaryData::InterThin_ttfSize);
+            //addFont("Untitled1-Regular", BinaryData::IconFont_ttf, BinaryData::IconFont_ttfSize);
+        }
+            
+        void paint(Graphics& g) override {};
 
         void paintOverChildren(Graphics& g) override
         {

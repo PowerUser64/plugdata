@@ -25,3 +25,8 @@
 [submodule "Libraries/cpath"]
 	path = Libraries/cpath
 	url = https://github.com/BraedonWooding/cpath
+[submodule "Libraries/juce_nanovg"]
+	path = Libraries/juce_nanovg
+	url = https://github.com/timothyschoen/juce_nanovg.git
+[submodule "juce_nanovg"]
+	url = https://github.com/timothyschoen/juce_nanovg.git
