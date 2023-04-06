@@ -715,7 +715,7 @@ public:
         applyStackBlur(renderedPath, radius);
 
         g.setColour(color);
-        g.drawImageAt(renderedPath, area.getX(), area.getY(), true);
+        g.drawImageAt(renderedPath, area.getX(), area.getY(), false);
     }
 };
 
