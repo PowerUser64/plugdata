@@ -414,11 +414,6 @@ struct PlugDataLook : public LookAndFeel_V4 {
             drawToolbarButtonBackground(g, button, shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
             return;
         }
-        if (button.getProperties()["Style"] == "TextIcon") {
-            drawTextButtonBackground(g, button, shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
-            return;
-        }
-
         if (button.getProperties()["Style"].toString().contains("Icon")) {
             return;
         } else {
@@ -432,11 +427,8 @@ struct PlugDataLook : public LookAndFeel_V4 {
             button.setColour(TextButton::textColourOnId, findColour(PlugDataColour::toolbarTextColourId));
             button.setColour(TextButton::textColourOffId, findColour(PlugDataColour::toolbarTextColourId));
             LookAndFeel_V4::drawButtonText(g, button, isMouseOverButton, isButtonDown);
-        } else if (button.getProperties()["Style"] == "TextIcon") {
-            button.setColour(TextButton::textColourOnId, findColour(PlugDataColour::toolbarBackgroundColourId));
-            button.setColour(TextButton::textColourOffId, findColour(PlugDataColour::toolbarBackgroundColourId));
-            LookAndFeel_V4::drawButtonText(g, button, isMouseOverButton, isButtonDown);
-        } else if (button.getProperties()["Style"] == "SmallIcon") {
+        }
+        else if (button.getProperties()["Style"] == "SmallIcon") {
             Font font(getTextButtonFont(button, button.getHeight()));
             g.setFont(font);
 

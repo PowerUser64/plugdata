@@ -732,9 +732,11 @@ private:
         void contextCreated(NVGcontext*) override
         {
             
-            addFont("Inter", BinaryData::IBMPlexMono_ttf, BinaryData::IBMPlexMono_ttfSize);
-            addFont("Inter-Regular", BinaryData::InterThin_ttf, BinaryData::InterThin_ttfSize);
-            addFont("Untitled1-Regular", BinaryData::InterThin_ttf, BinaryData::InterThin_ttfSize);
+            //addFont("Inter", BinaryData::InterVariable_ttf, BinaryData::InterVariable_ttfSize);
+            addFont("Inter-Regular", BinaryData::InterVariable_ttf, BinaryData::InterVariable_ttfSize);
+            addFont("Inter-Bold", BinaryData::InterBold_ttf, BinaryData::InterBold_ttfSize);
+            addFont("Inter-Light", BinaryData::InterThin_ttf, BinaryData::InterThin_ttfSize);
+            addFont("Untitled1-Regular", BinaryData::IconFont_ttf, BinaryData::IconFont_ttfSize);
             //addFont("Untitled1-Regular", BinaryData::IconFont_ttf, BinaryData::IconFont_ttfSize);
         }
             
